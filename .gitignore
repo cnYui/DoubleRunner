@@ -1,0 +1,6 @@
+node_modules/
+artifacts/
+build/
+*.aix
+.aiui-evidence/
+__pycache__/

@@ -1,0 +1,6 @@
+{
+  "pages": ["pages/run/index"],
+  "window": {
+    "navigationBarTitleText": "跑伴"
+  }
+}
