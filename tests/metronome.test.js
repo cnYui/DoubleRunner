@@ -119,6 +119,42 @@ test('a long stall re-anchors instead of firing a burst of catch-up beats', () =
   assert.ok(h.beats[h.beats.length - 1].lateMs <= 1);
 });
 
+test('poll() fires due beats on a host whose timers never deliver', () => {
+  let time = 0;
+  const beats = [];
+  const metronome = createMetronome({
+    now: () => time,
+    schedule: () => 1, // the timer is registered but never fires
+    cancel: () => {},
+    onBeat: (beat) => beats.push(beat)
+  });
+  metronome.start(180);
+  assert.equal(metronome.poll(), true); // beat 0 is due immediately
+  assert.equal(metronome.poll(), false);
+  time = 300;
+  assert.equal(metronome.poll(), false);
+  time = 340;
+  assert.equal(metronome.poll(), true);
+  time = 700;
+  assert.equal(metronome.poll(), true);
+  assert.equal(beats.length, 3);
+  assert.ok(Math.abs(beats[2].dueAt - 2000 / 3) < 0.01);
+  assert.ok(beats[2].lateMs < 40);
+  metronome.stop();
+  time = 2000;
+  assert.equal(metronome.poll(), false);
+  assert.equal(beats.length, 3);
+});
+
+test('poll() does not double-fire a beat the timer already delivered', () => {
+  const h = harness();
+  h.metronome.start(180);
+  h.advance(340);
+  assert.equal(h.beats.length, 2);
+  assert.equal(h.metronome.poll(), false);
+  assert.equal(h.beats.length, 2);
+});
+
 test('setBpm while stopped only stores the new interval', () => {
   const h = harness();
   h.metronome.setBpm(150);

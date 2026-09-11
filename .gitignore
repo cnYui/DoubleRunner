@@ -4,3 +4,4 @@ build/
 *.aix
 .aiui-evidence/
 __pycache__/
+.claude/

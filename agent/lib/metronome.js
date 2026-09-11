@@ -89,6 +89,17 @@ export function createMetronome(deps) {
       running = false;
       clearTimer();
     },
+    // Safety net for hosts whose timers are late or silent: call from any
+    // periodic tick (frame loop, UI refresh). Fires the beat when it is due
+    // and the timer has not delivered it yet. Returns true when a beat fired.
+    poll() {
+      if (!running) return false;
+      const dueAt = anchorAt + index * intervalMs;
+      if (now() < dueAt) return false;
+      clearTimer();
+      fire();
+      return true;
+    },
     get running() {
       return running;
     },

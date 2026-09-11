@@ -54,6 +54,7 @@ const CANVAS_HEIGHT = 150;
 const FRAME_MS = 50;
 const UI_MS = 200;
 const DEMO_SAMPLE_MS = Math.round(1000 / SENSOR_FREQUENCY);
+const DEMO_CATCH_UP_MS = 500;
 // When no sensor can be used, fall back to the clearly labelled demo signal so
 // the curve and the detector can still be exercised (Studio has no IMU
 // controls). Set to false for a release build that should stay metronome-only
@@ -160,9 +161,12 @@ export default {
     this._record = null;
     this._recordDrawn = false;
     this._frameTimer = null;
+    this._frameRaf = null;
+    this._lastDrawAt = 0;
     this._uiTimer = null;
     this._demoTimer = null;
     this._demoSignal = null;
+    this._demoLastT = null;
     this._ctxCache = null;
     this._ctxVia = '';
     this._uiSnapshot = '';
@@ -562,6 +566,7 @@ export default {
       seed: Math.floor(this._now() % 100000)
     });
     this._demoStartedAt = this._now();
+    this._demoLastT = null;
     this._demoTimer = setInterval(() => this._demoTick(), DEMO_SAMPLE_MS);
     this.setData({
       notice: reason === 'requested' ? '演示信号：合成的跑步动作，不是传感器数据' : '传感器不可用 · 显示演示信号'
@@ -570,16 +575,26 @@ export default {
     this._applyPhase();
   },
 
+  // Generates every 60 Hz sample between the previous tick and now, so the
+  // curve stays continuous even when the host delivers the interval late,
+  // in bursts, or only from the frame loop.
   _demoTick() {
     if (!this._demoSignal) return;
     this._demoTicks += 1;
     const now = this._now();
+    if (this._demoLastT === null) this._demoLastT = now - DEMO_SAMPLE_MS;
+    if (now - this._demoLastT > DEMO_CATCH_UP_MS) this._demoLastT = now - DEMO_CATCH_UP_MS;
     // The synthetic runner drifts around the target so the delta readout
     // and the metronome comparison have something to show.
     const drift = 8 * Math.sin((now - this._demoStartedAt) / 15000);
     this._demoSignal.setCadence(this._phase === 'running' ? this._target - 4 + drift : 0);
-    const sample = this._demoSignal.sample(now);
-    this._ingest(now, sample.x, sample.y, sample.z);
+    let t = this._demoLastT;
+    while (t + DEMO_SAMPLE_MS <= now) {
+      t += DEMO_SAMPLE_MS;
+      const sample = this._demoSignal.sample(t);
+      this._ingest(t, sample.x, sample.y, sample.z);
+    }
+    this._demoLastT = t;
   },
 
   _stopDemo() {
@@ -588,6 +603,7 @@ export default {
       this._demoTimer = null;
     }
     this._demoSignal = null;
+    this._demoLastT = null;
   },
 
   _ingest(t, x, y, z) {
@@ -737,12 +753,31 @@ export default {
 
   // ---- rendering ----------------------------------------------------------
 
+  // The frame loop prefers requestAnimationFrame (the host's own render
+  // clock) and falls back to setInterval; drawing is throttled to FRAME_MS.
   _startFrames() {
-    if (this._frameTimer !== null) return;
+    if (this._frameTimer !== null || this._frameRaf !== null) return;
+    if (typeof requestAnimationFrame === 'function' && typeof cancelAnimationFrame === 'function') {
+      const loop = () => {
+        this._frameRaf = null;
+        if (!this._visible) return;
+        this._frame();
+        this._frameRaf = requestAnimationFrame(loop);
+      };
+      this._frameRaf = requestAnimationFrame(loop);
+      // A timer keeps the page alive on hosts that only pump animation
+      // frames while something is dirty.
+      this._frameTimer = setInterval(() => this._frame(), FRAME_MS * 2);
+      return;
+    }
     this._frameTimer = setInterval(() => this._frame(), FRAME_MS);
   },
 
   _stopFrames() {
+    if (this._frameRaf !== null) {
+      cancelAnimationFrame(this._frameRaf);
+      this._frameRaf = null;
+    }
     if (this._frameTimer === null) return;
     clearInterval(this._frameTimer);
     this._frameTimer = null;
@@ -750,6 +785,13 @@ export default {
 
   _frame() {
     if (!this._visible) return;
+    // Beats and demo samples are driven from here as well, so a host with
+    // late or silent timers still keeps the metronome and the curve moving.
+    this._metronome.poll();
+    if (this._demoSignal) this._demoTick();
+    const now = this._now();
+    if (now - this._lastDrawAt < FRAME_MS - 5) return;
+    this._lastDrawAt = now;
     this._frames += 1;
     const ctx = this._ctx();
     if (!ctx) return;
@@ -767,7 +809,6 @@ export default {
         });
         return;
       }
-      const now = this._now();
       drawLiveCurve(ctx, {
         width: CANVAS_WIDTH,
         height: CANVAS_HEIGHT,
@@ -848,6 +889,7 @@ export default {
   _refreshUi(force) {
     this._uiTicks += 1;
     if (this._uiTicks % 25 === 0) this._logDiagnostics();
+    this._metronome.poll();
     if (this._phase === 'finished') return;
     const now = this._now();
     const elapsed = this._activeMs + (this._phase === 'running' ? now - this._runStartedAt : 0);
