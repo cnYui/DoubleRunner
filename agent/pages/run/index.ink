@@ -53,7 +53,7 @@ const CANVAS_WIDTH = 446;
 const CANVAS_HEIGHT = 150;
 const FRAME_MS = 50;
 const UI_MS = 200;
-const DEMO_SAMPLE_MS = 1000 / SENSOR_FREQUENCY;
+const DEMO_SAMPLE_MS = Math.round(1000 / SENSOR_FREQUENCY);
 // When no sensor can be used, fall back to the clearly labelled demo signal so
 // the curve and the detector can still be exercised (Studio has no IMU
 // controls). Set to false for a release build that should stay metronome-only
@@ -167,6 +167,9 @@ export default {
     this._ctxVia = '';
     this._uiSnapshot = '';
     this._notice = '';
+    this._demoTicks = 0;
+    this._frames = 0;
+    this._uiTicks = 0;
     this._input = createTempleInput({
       now: () => this._now(),
       schedule: (fn, ms) => setTimeout(fn, ms),
@@ -569,6 +572,7 @@ export default {
 
   _demoTick() {
     if (!this._demoSignal) return;
+    this._demoTicks += 1;
     const now = this._now();
     // The synthetic runner drifts around the target so the delta readout
     // and the metronome comparison have something to show.
@@ -746,6 +750,7 @@ export default {
 
   _frame() {
     if (!this._visible) return;
+    this._frames += 1;
     const ctx = this._ctx();
     if (!ctx) return;
     try {
@@ -841,6 +846,8 @@ export default {
   },
 
   _refreshUi(force) {
+    this._uiTicks += 1;
+    if (this._uiTicks % 25 === 0) this._logDiagnostics();
     if (this._phase === 'finished') return;
     const now = this._now();
     const elapsed = this._activeMs + (this._phase === 'running' ? now - this._runStartedAt : 0);
@@ -860,6 +867,24 @@ export default {
   },
 
   // ---- helpers ------------------------------------------------------------
+
+  // Runtime timer diagnostics (every ~5 s): how the host actually delivers
+  // the demo interval, the frame interval, the UI interval, and the beats.
+  _logDiagnostics() {
+    const samples = this._buffer.samples;
+    const first = samples.length ? samples[0] : null;
+    const last = samples.length ? samples[samples.length - 1] : null;
+    const stats = this._metronome.stats();
+    log(
+      'diag phase=' + this._phase + ' source=' + this._source + ' samples=' + samples.length +
+      ' span=' + (first && last ? Math.round(last.t - first.t) : 0) + 'ms lastAge=' +
+      (last ? Math.round(this._now() - last.t) : -1) + 'ms demoTicks=' + this._demoTicks +
+      ' readings=' + this._readings + ' frames=' + this._frames + ' ui=' + this._uiTicks +
+      ' beats=' + stats.beats + ' rate=' + stats.achievedRate.toFixed(2) + ' maxLate=' +
+      Math.round(stats.maxLateMs) + 'ms cadence=' + (this._latest ? this._latest.cadence : 0) +
+      ' scale=' + this._scale.toFixed(3) + ' ctx=' + this._ctxVia
+    );
+  },
 
   _now() {
     return Date.now();

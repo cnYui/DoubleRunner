@@ -30,7 +30,9 @@ export function createMetronome(deps) {
 
   function scheduleNext() {
     const dueAt = anchorAt + index * intervalMs;
-    timer = schedule(fire, Math.max(0, dueAt - now()));
+    // Integer delays only: the Ink runtime's timers are not guaranteed to
+    // accept fractional milliseconds.
+    timer = schedule(fire, Math.max(0, Math.round(dueAt - now())));
   }
 
   function fire() {
