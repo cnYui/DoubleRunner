@@ -93,7 +93,7 @@ test('page: load, show, run, detect cadence, pause, adjust target, finish, save'
     const steps = Number(page.data.stepsText);
     assert.ok(steps >= 32 && steps <= 37, 'steps ' + page.data.stepsText);
     assert.equal(page.data.clock, '00:12');
-    assert.ok(page.data.targetLabel.includes('偏快'), page.data.targetLabel);
+    assert.ok(page.data.targetLabel.includes('fast'), page.data.targetLabel);
     assert.ok(page._buffer.length > 300, 'curve buffer holds the last six seconds');
 
     // Swipe forward: target +5 and the running metronome retunes.
@@ -101,7 +101,7 @@ test('page: load, show, run, detect cadence, pause, adjust target, finish, save'
     assert.equal(page.data.targetCadence, 180);
     assert.equal(page._metronome.bpm, 180);
     page._refreshUi(true);
-    assert.ok(page.data.targetLabel.includes('与目标一致'), page.data.targetLabel);
+    assert.ok(page.data.targetLabel.includes('on pace'), page.data.targetLabel);
 
     // Tap: pause. The metronome stops, the sensor keeps previewing.
     v.tap();
@@ -113,7 +113,7 @@ test('page: load, show, run, detect cadence, pause, adjust target, finish, save'
     v.clock.time += 500;
     v.swipe('ArrowDown');
     assert.equal(page.data.state, 'finished');
-    assert.equal(page.data.stepsLabel, '步数 · 已保存');
+    assert.equal(page.data.stepsLabel, 'steps · saved');
     const saved = JSON.parse(runtime.storage.get(STORAGE_KEY));
     assert.equal(saved.length, 1);
     assert.equal(saved[0].steps, steps);
@@ -126,7 +126,7 @@ test('page: load, show, run, detect cadence, pause, adjust target, finish, save'
     // Tap after finishing: back to idle with the last record shown.
     v.tap();
     assert.equal(page.data.state, 'idle');
-    assert.ok(page.data.lastRecordText.startsWith('上次 '), page.data.lastRecordText);
+    assert.ok(page.data.lastRecordText.startsWith('Last '), page.data.lastRecordText);
     assert.equal(page.data.stepsText, '0');
 
     page.onUnload();
@@ -182,10 +182,10 @@ test('page: a gyroscope error falls back to the accelerometer, then to the demo 
     assert.equal(runtime.calls.accelerometers.length, 1);
     assert.equal(runtime.calls.accelerometers[0].started, 1);
     assert.equal(page._source, 'accelerometer');
-    assert.equal(page.data.notice, '陀螺仪不可用，改用加速度计');
+    assert.equal(page.data.notice, 'Gyroscope unavailable · switched to accelerometer');
     runtime.calls.accelerometers[0].fail('NotReadableError', 'no accelerometer either');
     assert.equal(page._source, 'demo');
-    assert.ok(page.data.stateLabel.includes('演示'));
+    assert.ok(page.data.stateLabel.includes('DEMO'));
     assert.notEqual(page._demoTimer, null);
     page.onUnload();
     assert.equal(page._demoTimer, null);

@@ -1,0 +1,912 @@
+<title>DoubleRunner Product Review</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper: #f2f4ef;
+    --panel: #ffffff;
+    --panel-2: #e9ede4;
+    --ink: #12160f;
+    --muted: #5f6a5b;
+    --rule: #d2d8cc;
+    --accent: #1c7a3c;
+    --accent-soft: #e2efe2;
+    --amber: #8f5712;
+    --amber-soft: #f4e9d8;
+    --screen: #040604;
+    --screen-line: #2c4a30;
+    --shadow: 0 1px 2px rgba(18, 22, 15, 0.06), 0 12px 28px rgba(18, 22, 15, 0.08);
+    --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0e110c;
+      --panel: #171b14;
+      --panel-2: #1f251c;
+      --ink: #e8ede4;
+      --muted: #9aa795;
+      --rule: #2d3428;
+      --accent: #5fd17a;
+      --accent-soft: #1a2a1d;
+      --amber: #d8a05d;
+      --amber-soft: #2a2317;
+      --screen: #040604;
+      --screen-line: #33563a;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 30px rgba(0, 0, 0, 0.45);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0e110c;
+    --panel: #171b14;
+    --panel-2: #1f251c;
+    --ink: #e8ede4;
+    --muted: #9aa795;
+    --rule: #2d3428;
+    --accent: #5fd17a;
+    --accent-soft: #1a2a1d;
+    --amber: #d8a05d;
+    --amber-soft: #2a2317;
+    --screen: #040604;
+    --screen-line: #33563a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 30px rgba(0, 0, 0, 0.45);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .fit { position: relative; }
+
+  .stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1280px;
+    height: 720px;
+    transform-origin: top left;
+    background: var(--paper);
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 46px 56px 58px;
+  }
+
+  .slide.is-current { display: flex; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 78px;
+    line-height: 0.98;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  h2 {
+    margin: 6px 0 0;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 38px;
+    line-height: 1.06;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  h3 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: 0.01em;
+  }
+
+  p { margin: 0; font-size: 15px; line-height: 1.58; color: var(--muted); }
+  p.lead { font-size: 19px; line-height: 1.5; color: var(--ink); max-width: 62ch; }
+  strong { color: var(--ink); font-weight: 600; }
+
+  .head { display: flex; flex-direction: column; gap: 4px; }
+  .head .sub { margin-top: 10px; max-width: 74ch; }
+  .body { flex: 1; display: flex; gap: 30px; margin-top: 26px; min-height: 0; }
+  .body.stack { flex-direction: column; gap: 20px; }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* device plate ------------------------------------------------------- */
+  .plate { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .screen {
+    position: relative;
+    background: var(--screen);
+    border: 1px solid var(--screen-line);
+    border-radius: 3px;
+    padding: 5px;
+    box-shadow: var(--shadow);
+    line-height: 0;
+  }
+  .screen img { width: 100%; height: auto; display: block; image-rendering: -webkit-optimize-contrast; }
+  .plate figcaption {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .plate .cap-key {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 1px 6px;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+  }
+
+  /* callout markers ----------------------------------------------------- */
+  .mark {
+    position: absolute;
+    width: 21px;
+    height: 21px;
+    margin: -10px 0 0 -10px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #f5fbf4;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 21px;
+    text-align: center;
+    box-shadow: 0 0 0 2px rgba(4, 6, 4, 0.85);
+  }
+  :root[data-theme="dark"] .mark, :root:not([data-theme="light"]) .mark { color: #06140a; }
+
+  .legend { display: flex; flex-direction: column; gap: 11px; }
+  .legend li { display: grid; grid-template-columns: 22px 1fr; gap: 11px; align-items: start; }
+  .legend ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 11px; }
+  .legend .n {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 20px;
+    text-align: center;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+  }
+  .legend .t { font-size: 14px; line-height: 1.45; color: var(--muted); }
+  .legend .t b { color: var(--ink); font-weight: 600; }
+
+  /* flow ---------------------------------------------------------------- */
+  .flow { display: flex; align-items: flex-start; gap: 10px; }
+  .flow .plate { flex: 1; }
+  .flow .arrow {
+    align-self: center;
+    margin-top: -26px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    text-align: center;
+    width: 78px;
+    line-height: 1.35;
+  }
+  .flow .arrow span { display: block; font-size: 17px; color: var(--rule); }
+
+  /* data blocks --------------------------------------------------------- */
+  .rows { display: flex; flex-direction: column; }
+  .rows .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: baseline;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .rows .row:first-child { border-top: 1px solid var(--rule); }
+  .rows .k { font-size: 14px; color: var(--muted); }
+  .rows .k b { color: var(--ink); font-weight: 600; }
+  .rows .v { font-family: var(--mono); font-size: 13.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .rows .v.ok { color: var(--accent); }
+  .rows .v.no { color: var(--amber); }
+
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat {
+    flex: 1 1 0;
+    min-width: 118px;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+  }
+  .stat .v { font-family: var(--mono); font-size: 25px; line-height: 1.15; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .stat .k { margin-top: 3px; font-size: 12px; color: var(--muted); }
+
+  .note {
+    padding: 13px 15px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+  .note.warn { border-left-color: var(--amber); background: var(--amber-soft); }
+  .note b { color: var(--ink); }
+
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; }
+  .chip {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 4px 9px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--panel);
+  }
+  .chip.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .chip.off { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
+
+  .pipeline { display: flex; align-items: stretch; gap: 6px; }
+  .stage-box {
+    flex: 1;
+    padding: 11px 12px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .stage-box .sn { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; color: var(--accent); }
+  .stage-box .sh { font-family: var(--display); font-weight: 600; font-size: 14.5px; line-height: 1.2; }
+  .stage-box .sd { font-family: var(--mono); font-size: 11px; line-height: 1.45; color: var(--muted); }
+  .pipeline .tick { align-self: center; color: var(--rule); font-size: 15px; }
+
+  code, .mono { font-family: var(--mono); font-size: 13px; }
+  .codeblock {
+    padding: 12px 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .codeblock .cm { color: var(--muted); }
+
+  .scale-fig { display: flex; align-items: flex-end; gap: 18px; }
+  .scale-fig .box { position: relative; border: 1px solid var(--rule); background: var(--panel); border-radius: 3px; }
+  .scale-fig .inner { position: absolute; border: 1px dashed var(--accent); background: var(--accent-soft); }
+  .scale-fig .tag {
+    position: absolute;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .ladder { display: flex; gap: 0; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+  .ladder div { flex: 1; height: 34px; background: var(--screen); position: relative; }
+  .ladder div i {
+    position: absolute;
+    inset: 5px;
+    background: #40ff5e;
+    border-radius: 2px;
+  }
+  .ladder-labels { display: flex; }
+  .ladder-labels span { flex: 1; font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-align: center; padding-top: 4px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+
+  /* title slide --------------------------------------------------------- */
+  .title-wrap { flex: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 44px; align-items: center; }
+  .title-meta { display: flex; flex-direction: column; gap: 16px; }
+  .rule-line { height: 1px; background: var(--rule); }
+
+  /* chrome -------------------------------------------------------------- */
+  .chrome {
+    position: absolute;
+    left: 56px;
+    right: 56px;
+    bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .chrome .wm { color: var(--ink); }
+  .chrome .wm b { color: var(--accent); font-weight: 500; }
+
+  .nav {
+    position: absolute;
+    right: 18px;
+    bottom: 14px;
+    display: flex;
+    gap: 8px;
+    z-index: 5;
+  }
+  .nav button {
+    font-family: var(--mono);
+    font-size: 13px;
+    width: 34px;
+    height: 30px;
+    border: 1px solid var(--rule);
+    background: var(--panel);
+    color: var(--ink);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .nav button:hover { border-color: var(--accent); color: var(--accent); }
+  .nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .dots { position: absolute; left: 18px; bottom: 20px; display: flex; gap: 5px; z-index: 5; }
+  .dots button {
+    width: 9px; height: 9px; padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--rule);
+    background: transparent;
+    cursor: pointer;
+  }
+  .dots button[aria-current="true"] { background: var(--accent); border-color: var(--accent); }
+  .dots button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media print {
+    @page { size: 1280px 720px; margin: 0; }
+    .frame { display: block; width: auto; height: auto; overflow: visible; }
+    .fit { width: auto !important; height: auto !important; }
+    .stage { position: static; transform: none !important; width: 1280px; height: 720px; page-break-after: always; }
+    .slide { display: flex !important; position: relative; inset: auto; width: 1280px; height: 720px; }
+    .nav, .dots { display: none; }
+  }
+</style>
+
+<div class="frame">
+  <div class="fit" id="fit">
+    <div class="stage" id="stage">
+
+      <!-- 1 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Title">
+        <div class="title-wrap">
+          <div class="title-meta">
+            <span class="eyebrow">Product review &middot; 12 Sep 2026</span>
+            <h1>DoubleRunner</h1>
+            <p class="lead">A running-cadence companion for Rokid Glasses. It charts the stride from the
+              head-mounted gyroscope, reads your cadence off that curve, and keeps a metronome at the cadence
+              you are aiming for &mdash; all inside a 480 &times; 352 single-green display.</p>
+            <div class="rule-line"></div>
+            <div class="chips">
+              <span class="chip">AIUI 0.17.0</span>
+              <span class="chip">Page pages/run/index</span>
+              <span class="chip">build 2026-09-11.1</span>
+              <span class="chip">github.com/cnYui/DoubleRunner</span>
+            </div>
+          </div>
+          <figure class="plate">
+            <div class="screen"><img src="{{shot:03-running}}" alt="The DoubleRunner run screen: stride curve, 196 spm, target 190, 3.2 beats per second, 45 steps."></div>
+            <figcaption><span class="cap-key">RUNNING</span>Every screen in this deck is a real capture from the
+              Ink runtime. The web host has no IMU, so the stride comes from the built-in demo signal &mdash;
+              the page labels that on screen.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 2 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Anatomy">
+        <div class="head">
+          <span class="eyebrow">The screen</span>
+          <h2>Six things, one glance</h2>
+          <p class="sub">Everything a runner can act on while moving, and nothing else. The page never scrolls,
+            never opens a menu, and never asks for a confirmation.</p>
+        </div>
+        <div class="body">
+          <div class="col" style="flex: 1.25;">
+            <figure class="plate">
+              <div class="screen">
+                <img src="{{shot:03-running}}" alt="Annotated run screen.">
+                <span class="mark" style="left: 46%; top: 12%;">1</span>
+                <span class="mark" style="left: 91%; top: 11%;">2</span>
+                <span class="mark" style="left: 4%; top: 53%;">3</span>
+                <span class="mark" style="left: 31%; top: 53%;">4</span>
+                <span class="mark" style="left: 54%; top: 53%;">5</span>
+                <span class="mark" style="left: 76%; top: 53%;">6</span>
+              </div>
+            </figure>
+          </div>
+          <div class="col legend" style="flex: 0.95;">
+            <ol>
+              <li><span class="n">1</span><span class="t"><b>Stride curve</b> &mdash; the last 6 seconds of angular
+                velocity on the dominant axis. Each detected step gets a dot and a tick along the top edge.</span></li>
+              <li><span class="n">2</span><span class="t"><b>Beat dot</b> &mdash; lights for 110 ms on every beat, so
+                the metronome is visible when you cannot hear it.</span></li>
+              <li><span class="n">3</span><span class="t"><b>Cadence now</b> &mdash; 44 px figures, the one number you
+                read at a glance. Median of the last 8 step intervals.</span></li>
+              <li><span class="n">4</span><span class="t"><b>Target and delta</b> &mdash; 190 here, with
+                <code>+6 fast</code> telling you which way to correct.</span></li>
+              <li><span class="n">5</span><span class="t"><b>Achieved beat rate</b> &mdash; 3.2 beats per second, measured
+                over the last 12 beats, not the rate that was requested.</span></li>
+              <li><span class="n">6</span><span class="t"><b>Steps</b> &mdash; counted for this run only.</span></li>
+            </ol>
+            <div class="note">The line under the metrics always states where the signal comes from. Here it reads
+              <b>No sensor &middot; showing demo signal</b>, and the state chip carries <b>&middot; DEMO</b>.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Canvas">
+        <div class="head">
+          <span class="eyebrow">Canvas and design system</span>
+          <h2>Three sizes, one green</h2>
+          <p class="sub">The optical canvas is 3:4 portrait, but a Page renders into a 15:11 landscape viewport
+            inside it, and the same Page also has to survive as a card in the conversation flow.</p>
+        </div>
+        <div class="body">
+          <div class="col" style="flex: 1;">
+            <div class="scale-fig">
+              <div class="box" style="width: 210px; height: 280px;">
+                <div class="inner" style="left: 0; top: 63px; width: 210px; height: 154px;"></div>
+                <span class="tag" style="left: 0; top: -18px;">480 &times; 640 optical canvas</span>
+                <span class="tag" style="left: 8px; top: 130px;">480 &times; 352 page viewport</span>
+              </div>
+              <div class="box" style="width: 196px; height: 66px;">
+                <span class="tag" style="left: 0; top: -18px;">448 &times; 150 inline card</span>
+                <span class="tag" style="left: 8px; top: 24px;">state &middot; cadence &middot; target &middot; hint</span>
+              </div>
+            </div>
+            <div class="rows">
+              <div class="row"><span class="k"><b>Safe area</b> inside the viewport</span><span class="v">16 px sides &middot; 12 px top/bottom</span></div>
+              <div class="row"><span class="k"><b>Content width</b></span><span class="v">448 px</span></div>
+              <div class="row"><span class="k"><b>Curve frame</b></span><span class="v">448 &times; 152 px</span></div>
+              <div class="row"><span class="k"><b>Cadence figures</b></span><span class="v">44 px monospace</span></div>
+            </div>
+          </div>
+          <div class="col" style="flex: 1;">
+            <h3>One hue, five luminance steps</h3>
+            <div class="ladder">
+              <div><i style="opacity: 1;"></i></div>
+              <div><i style="opacity: 0.72;"></i></div>
+              <div><i style="opacity: 0.48;"></i></div>
+              <div><i style="opacity: 0.24;"></i></div>
+              <div><i style="opacity: 0.12;"></i></div>
+            </div>
+            <div class="ladder-labels">
+              <span>100%</span><span>72%</span><span>48%</span><span>24%</span><span>12%</span>
+            </div>
+            <p>#40ff5e only. Hierarchy comes from luminance, size, and position &mdash; never from a second hue,
+              because the display has none. Structural lines stay at 1 px, controls take 4 px corners and panels
+              6 px, and no filled area goes above 12 % luminance so the optics stay readable against daylight.</p>
+            <div class="note">Below 240 px of height the page drops the curve, the beat rate, and the step count,
+              and keeps the state, the cadence, the target, and the hint. That is the inline card, and it is the
+              same Page &mdash; one layout, two densities.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Run flow">
+        <div class="head">
+          <span class="eyebrow">Using it</span>
+          <h2>One button does the whole run</h2>
+          <p class="sub">The temple click carries the run from start to finish. Nothing else is required while
+            you are moving, and every transition is one gesture.</p>
+        </div>
+        <div class="body stack">
+          <div class="flow">
+            <figure class="plate">
+              <div class="screen"><img src="{{shot:01-ready}}" alt="Ready state with the idle preview curve."></div>
+              <figcaption><span class="cap-key">READY</span>Sensor preview runs, target 180.</figcaption>
+            </figure>
+            <div class="arrow"><span>&rsaquo;</span>click</div>
+            <figure class="plate">
+              <div class="screen"><img src="{{shot:03-running}}" alt="Running state with the stride curve and metrics."></div>
+              <figcaption><span class="cap-key">RUNNING</span>Steps counted, metronome on.</figcaption>
+            </figure>
+            <div class="arrow"><span>&rsaquo;</span>click</div>
+            <figure class="plate">
+              <div class="screen"><img src="{{shot:05-paused}}" alt="Paused state, the stride stops mid-frame."></div>
+              <figcaption><span class="cap-key">PAUSED</span>Clock and beat stop; 163 steps held.</figcaption>
+            </figure>
+            <div class="arrow"><span>&rsaquo;</span>swipe back</div>
+            <figure class="plate">
+              <div class="screen"><img src="{{shot:06-finished}}" alt="Finished state with the whole-run cadence chart."></div>
+              <figcaption><span class="cap-key">DONE</span>Run saved, whole-run chart drawn.</figcaption>
+            </figure>
+          </div>
+          <div class="col">
+            <div class="note">Leaving the page mid-run pauses it and releases the sensor; an unfinished run that
+              has steps is saved silently on unload. The Back key is left to the host, so the glasses behave the
+              way the rest of the system does.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Target">
+        <div class="head">
+          <span class="eyebrow">Setting the target</span>
+          <h2>Swipe the temple, the beat retunes</h2>
+          <p class="sub">The target cadence is the one setting this app has, so it is bound to the gesture you
+            can make without looking: swipe forward for +5, swipe back for &minus;5.</p>
+        </div>
+        <div class="body">
+          <div class="col" style="flex: 1.1;">
+            <div class="flow">
+              <figure class="plate">
+                <div class="screen"><img src="{{shot:01-ready}}" alt="Target 180 before the swipe."></div>
+                <figcaption><span class="cap-key">BEFORE</span>Target 180, the default.</figcaption>
+              </figure>
+              <div class="arrow"><span>&rsaquo;</span>swipe forward &times;2</div>
+              <figure class="plate">
+                <div class="screen"><img src="{{shot:02-target-adjust}}" alt="Target 190 after two forward swipes."></div>
+                <figcaption><span class="cap-key">AFTER</span>Target 190, beat follows immediately.</figcaption>
+              </figure>
+            </div>
+          </div>
+          <div class="col" style="flex: 0.85;">
+            <div class="rows">
+              <div class="row"><span class="k">Range, clamped</span><span class="v">120 &ndash; 220 spm</span></div>
+              <div class="row"><span class="k">Step per swipe</span><span class="v">&plusmn;5 spm</span></div>
+              <div class="row"><span class="k">Default when unspecified</span><span class="v">180 spm</span></div>
+              <div class="row"><span class="k">Adjustable while running</span><span class="v ok">yes, phase kept</span></div>
+            </div>
+            <p>Changing the target mid-run retunes the metronome on the next beat instead of restarting the
+              sequence, so the rhythm never stutters while you are in step with it.</p>
+            <div class="note">Voice reaches the same setting: <b>&ldquo;cadence 175&rdquo;</b> opens the page with
+              <code>targetCadence: 175</code>. The agent is told to re-open the Page with the new number rather
+              than answer in words.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Timing">
+        <div class="head">
+          <span class="eyebrow">Timing and counting</span>
+          <h2>The clock only runs while you do</h2>
+          <p class="sub">Twelve seconds apart in the same run: the clock, the step count, and the cadence all
+            advance, while the achieved beat rate holds at the target.</p>
+        </div>
+        <div class="body">
+          <div class="col" style="flex: 1.15;">
+            <div class="flow">
+              <figure class="plate">
+                <div class="screen"><img src="{{shot:03-running}}" alt="Run at 13 seconds, 45 steps."></div>
+                <figcaption><span class="cap-key">00:13</span>196 spm &middot; +6 fast &middot; 45 steps</figcaption>
+              </figure>
+              <div class="arrow"><span>&rsaquo;</span>12 s later</div>
+              <figure class="plate">
+                <div class="screen"><img src="{{shot:04-running-later}}" alt="Run at 25 seconds, 83 steps, beat dot lit."></div>
+                <figcaption><span class="cap-key">00:25</span>186 spm &middot; &minus;4 slow &middot; 83 steps</figcaption>
+              </figure>
+            </div>
+          </div>
+          <div class="col" style="flex: 0.8;">
+            <div class="stats">
+              <div class="stat"><div class="v">38</div><div class="k">steps in 12 s</div></div>
+              <div class="stat"><div class="v">3.2</div><div class="k">beats / s held</div></div>
+            </div>
+            <div class="rows">
+              <div class="row"><span class="k">Elapsed counts</span><span class="v">active time only</span></div>
+              <div class="row"><span class="k">Pause excluded</span><span class="v ok">yes</span></div>
+              <div class="row"><span class="k">Cadence memory</span><span class="v">last 8 intervals</span></div>
+              <div class="row"><span class="k">Reading clears after</span><span class="v">2.5 s without a step</span></div>
+            </div>
+            <p>In the second frame the beat dot is lit &mdash; that is the metronome firing at the moment of
+              capture, one of three beats in that second.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Records">
+        <div class="head">
+          <span class="eyebrow">Finishing</span>
+          <h2>The run becomes a record</h2>
+          <p class="sub">Swiping back while paused ends the run, saves it, and replaces the live curve with the
+            cadence chart for the whole session.</p>
+        </div>
+        <div class="body">
+          <div class="col" style="flex: 1.15;">
+            <div class="flow">
+              <figure class="plate">
+                <div class="screen"><img src="{{shot:06-finished}}" alt="Whole-run cadence chart with the target line."></div>
+                <figcaption><span class="cap-key">DONE</span>Cadence per second, dashed line = target 190.</figcaption>
+              </figure>
+              <div class="arrow"><span>&rsaquo;</span>click</div>
+              <figure class="plate">
+                <div class="screen"><img src="{{shot:07-ready-with-record}}" alt="Ready screen showing the last run summary line."></div>
+                <figcaption><span class="cap-key">READY</span>Last run summarised in one line.</figcaption>
+              </figure>
+            </div>
+          </div>
+          <div class="col" style="flex: 0.85;">
+            <h3>What a record keeps</h3>
+            <div class="rows">
+              <div class="row"><span class="k">Average cadence</span><span class="v">186 spm</span></div>
+              <div class="row"><span class="k">Time on target</span><span class="v">43 %</span></div>
+              <div class="row"><span class="k">Elapsed &middot; steps</span><span class="v">00:52 &middot; 163</span></div>
+              <div class="row"><span class="k">Cadence series</span><span class="v">one sample / second</span></div>
+              <div class="row"><span class="k">Stored in</span><span class="v">localStorage, newest 20</span></div>
+            </div>
+            <p>The chart is drawn once when the run ends, not every frame, so the finished screen costs nothing
+              to keep on the display while you catch your breath.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Detection">
+        <div class="head">
+          <span class="eyebrow">How it reads your stride</span>
+          <h2>Head bob in, cadence out</h2>
+          <p class="sub">The gyroscope sits on your head, so every stride arrives as a nod. Six stages turn that
+            into a number, all of them pure functions that replay in Node.</p>
+        </div>
+        <div class="body" style="flex-direction: column; gap: 20px;">
+          <div class="pipeline">
+            <div class="stage-box"><span class="sn">01</span><span class="sh">Raw sample</span><span class="sd">3 axes, 60 Hz<br>rad/s or m/s&sup2;</span></div>
+            <span class="tick">&rsaquo;</span>
+            <div class="stage-box"><span class="sn">02</span><span class="sh">High-pass</span><span class="sd">&tau; = 0.8 s<br>drops drift and gravity</span></div>
+            <span class="tick">&rsaquo;</span>
+            <div class="stage-box"><span class="sn">03</span><span class="sh">Pick the axis</span><span class="sd">largest recent variance<br>30 % hysteresis</span></div>
+            <span class="tick">&rsaquo;</span>
+            <div class="stage-box"><span class="sn">04</span><span class="sh">Low-pass</span><span class="sd">&tau; = 40 ms<br>smooths the peak</span></div>
+            <span class="tick">&rsaquo;</span>
+            <div class="stage-box"><span class="sn">05</span><span class="sh">Armed peak</span><span class="sd">&gt; max(0.35 rad/s, 0.9 &times; RMS)<br>250 &ndash; 1500 ms apart</span></div>
+            <span class="tick">&rsaquo;</span>
+            <div class="stage-box"><span class="sn">06</span><span class="sh">Cadence</span><span class="sd">60000 / median of 8<br>smoothed 35 %</span></div>
+          </div>
+          <div class="two-col">
+            <div class="col">
+              <h3>What the tests pin down</h3>
+              <div class="rows">
+                <div class="row"><span class="k">180 spm stride, one step per nod</span><span class="v ok">&plusmn;3 spm</span></div>
+                <div class="row"><span class="k">172 spm on a non-obvious axis</span><span class="v ok">&plusmn;3 spm</span></div>
+                <div class="row"><span class="k">110 spm walk</span><span class="v ok">&plusmn;3 spm</span></div>
+                <div class="row"><span class="k">Accelerometer with gravity offset</span><span class="v ok">&plusmn;3 spm</span></div>
+                <div class="row"><span class="k">160 &rarr; 184 change tracked</span><span class="v ok">&plusmn;4 spm</span></div>
+                <div class="row"><span class="k">Sensor noise, no motion</span><span class="v ok">0 steps</span></div>
+              </div>
+            </div>
+            <div class="col">
+              <h3>The two traps it avoids</h3>
+              <p><b>Double counting.</b> One nod has two lobes. A step only counts once the signal has fallen back
+                below the baseline since the last one &mdash; the detector has to re-arm.</p>
+              <p><b>Invented intervals.</b> If samples stop arriving and resume later, the filters restart instead
+                of treating the gap as one enormous stride.</p>
+              <div class="note">The same detector runs on the accelerometer when the gyroscope is unavailable,
+                with a 1.2 m/s&sup2; threshold; gravity is removed by the same high-pass.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 9 ------------------------------------------------------------ -->
+      <section class="slide" data-label="Metronome">
+        <div class="head">
+          <span class="eyebrow">The metronome</span>
+          <h2>No buzzer, so the beat has to be heard and seen</h2>
+          <p class="sub">The obvious design &mdash; buzz the temple at 180 spm &mdash; is not buildable on this
+            platform. That finding shaped the whole feedback design.</p>
+        </div>
+        <div class="body">
+          <div class="col" style="flex: 1;">
+            <h3>What the runtime actually offers</h3>
+            <div class="rows">
+              <div class="row"><span class="k"><b>Sound</b> &mdash; local short sound effect</span><span class="v ok">available</span></div>
+              <div class="row"><span class="k"><b>AudioContext</b> &mdash; synthesised tone</span><span class="v no">absent in 0.17</span></div>
+              <div class="row"><span class="k"><b>navigator.vibrate</b> &mdash; haptics</span><span class="v no">does not exist</span></div>
+              <div class="row"><span class="k">Vibration anywhere in the AIUI API</span><span class="v no">not documented</span></div>
+            </div>
+            <p>So the beat is a 1200 Hz, 35 ms tick with an 1800 Hz accent every fourth beat, plus the dot on the
+              curve frame. The agent is explicitly instructed never to promise a haptic cue.</p>
+            <div class="note warn"><b>Consequence for the product:</b> in a noisy street the beat is carried by the
+              dot alone. That is a real limitation of the platform, not a choice, and it is worth re-testing the
+              moment a haptic API appears.</div>
+          </div>
+          <div class="col" style="flex: 1;">
+            <h3>Beats that cannot drift</h3>
+            <div class="codeblock"><span class="cm">// every beat is computed from the anchor,</span>
+<span class="cm">// never accumulated from the last callback</span>
+dueAt = anchorAt + index * intervalMs;
+delay = max(0, round(dueAt - now()));</div>
+            <p>A late callback therefore shortens the next delay instead of pushing every following beat back.
+              At 180 spm that is one beat every 333 ms, exactly 3 per second.</p>
+            <div class="rows">
+              <div class="row"><span class="k">10 beats in 3 s on an ideal clock</span><span class="v ok">verified</span></div>
+              <div class="row"><span class="k">Late callback shifts later beats</span><span class="v ok">no drift</span></div>
+              <div class="row"><span class="k">Long stall</span><span class="v ok">re-anchors, no burst</span></div>
+              <div class="row"><span class="k">Measured in the host, target 190</span><span class="v ok">3.2 beats / s</span></div>
+            </div>
+            <div class="note">The host does not deliver timers reliably, so the beat is also polled from the frame
+              loop and the UI refresh: as long as the page renders, the rhythm holds.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10 ----------------------------------------------------------- -->
+      <section class="slide" data-label="Status">
+        <div class="head">
+          <span class="eyebrow">Engineering status</span>
+          <h2>What is green, and what is blocked</h2>
+          <p class="sub">Everything below was run on this revision. The audit is deliberately reported as blocked
+            rather than passed.</p>
+        </div>
+        <div class="body">
+          <div class="col" style="flex: 1;">
+            <div class="stats">
+              <div class="stat"><div class="v">41 / 41</div><div class="k">Node tests passing</div></div>
+              <div class="stat"><div class="v">54.95 KB</div><div class="k">packaged .aix, 16 entries</div></div>
+            </div>
+            <div class="rows">
+              <div class="row"><span class="k">Project validation, strict</span><span class="v ok">pass</span></div>
+              <div class="row"><span class="k">Capability inventory</span><span class="v">45 rows, no version violations</span></div>
+              <div class="row"><span class="k">Audit matrix structure</span><span class="v ok">valid</span></div>
+              <div class="row"><span class="k">Final release decision</span><span class="v no">BLOCKED &middot; release-ready NO</span></div>
+            </div>
+            <div class="note warn">Blocked is the honest result, not a failure: every evidence layer needs a signed
+              capture manifest and a session on real glasses, and neither exists on this workstation. No row is
+              marked FAIL.</div>
+          </div>
+          <div class="col" style="flex: 1;">
+            <h3>Host capabilities, measured in Studio 1.1.0</h3>
+            <div class="chips">
+              <span class="chip off">Gyroscope &mdash; not configured on web host</span>
+              <span class="chip off">Accelerometer &mdash; not configured</span>
+              <span class="chip on">Sound</span>
+              <span class="chip off">AudioContext</span>
+              <span class="chip off">vibrate</span>
+              <span class="chip on">localStorage</span>
+              <span class="chip on">canvas via wx.createCanvasContext</span>
+              <span class="chip on">requestAnimationFrame</span>
+            </div>
+            <h3 style="margin-top: 6px;">Where the code lives</h3>
+            <div class="rows">
+              <div class="row"><span class="k"><b>agent/</b> &mdash; Studio import root</span><span class="v">1 Page, 6 libs, 2 sounds</span></div>
+              <div class="row"><span class="k"><b>lib/</b> &mdash; cadence, metronome, curve, records</span><span class="v">pure, replayable</span></div>
+              <div class="row"><span class="k"><b>tests/</b> &mdash; outside the bundle</span><span class="v">drives the real .ink module</span></div>
+              <div class="row"><span class="k"><b>docs/</b> &mdash; audit matrix and this deck</span><span class="v">regenerated per revision</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 11 ----------------------------------------------------------- -->
+      <section class="slide" data-label="Next">
+        <div class="head">
+          <span class="eyebrow">Honest status</span>
+          <h2>What a device session still has to prove</h2>
+          <p class="sub">The simulator reproduces the runtime, not the hardware. These are the claims that cannot
+            be closed anywhere but on the glasses.</p>
+        </div>
+        <div class="body stack">
+          <div class="two-col" style="flex: 1;">
+            <div class="col">
+              <h3>Verified here</h3>
+              <div class="rows">
+                <div class="row"><span class="k">State machine, all transitions</span><span class="v ok">tests + host</span></div>
+                <div class="row"><span class="k">Cadence detector accuracy</span><span class="v ok">synthetic signals</span></div>
+                <div class="row"><span class="k">Beat scheduling and rate</span><span class="v ok">tests + host</span></div>
+                <div class="row"><span class="k">Sensor fallback chain</span><span class="v ok">gyro &rarr; accel &rarr; demo</span></div>
+                <div class="row"><span class="k">Records and persistence</span><span class="v ok">tests + host</span></div>
+                <div class="row"><span class="k">Layout at 480 &times; 352 and 448 &times; 150</span><span class="v ok">host</span></div>
+              </div>
+            </div>
+            <div class="col">
+              <h3>Open on the device</h3>
+              <div class="rows">
+                <div class="row"><span class="k">Real gyroscope, real running</span><span class="v no">not run</span></div>
+                <div class="row"><span class="k">Detector accuracy on a human stride</span><span class="v no">not run</span></div>
+                <div class="row"><span class="k">Beat audible over road noise</span><span class="v no">not run</span></div>
+                <div class="row"><span class="k">Optics in daylight, motion blur</span><span class="v no">not run</span></div>
+                <div class="row"><span class="k">Voice routing to targetCadence</span><span class="v no">draft agent</span></div>
+                <div class="row"><span class="k">Record timestamp offset</span><span class="v no">host clock differs</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="note"><b>Next session, in order:</b> import on the glasses, run 5 minutes at 180, compare the
+              detected cadence against a manual count, confirm the tick is audible at pace, then re-check the
+              record timestamp against the device clock.</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="dots" id="dots"></div>
+  <div class="nav">
+    <button type="button" id="prev" aria-label="Previous slide">&lsaquo;</button>
+    <button type="button" id="next" aria-label="Next slide">&rsaquo;</button>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var stage = document.getElementById('stage');
+    var fit = document.getElementById('fit');
+    var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+    var dots = document.getElementById('dots');
+    var current = 0;
+
+    slides.forEach(function (slide, i) {
+      var chrome = document.createElement('div');
+      chrome.className = 'chrome';
+      chrome.innerHTML =
+        '<span class="wm"><b>DoubleRunner</b> &middot; ' + slide.dataset.label + '</span>' +
+        '<span>' + String(i + 1).padStart(2, '0') + ' / ' + String(slides.length).padStart(2, '0') + '</span>';
+      slide.appendChild(chrome);
+
+      var dot = document.createElement('button');
+      dot.type = 'button';
+      dot.setAttribute('aria-label', 'Slide ' + (i + 1) + ': ' + slide.dataset.label);
+      dot.addEventListener('click', function () { show(i); });
+      dots.appendChild(dot);
+    });
+
+    function show(n) {
+      current = Math.max(0, Math.min(slides.length - 1, n));
+      slides.forEach(function (s, i) { s.classList.toggle('is-current', i === current); });
+      Array.prototype.forEach.call(dots.children, function (d, i) {
+        d.setAttribute('aria-current', i === current ? 'true' : 'false');
+      });
+      if (history.replaceState) history.replaceState(null, '', '#' + (current + 1));
+    }
+
+    function resize() {
+      var scale = Math.min((window.innerWidth - 40) / 1280, (window.innerHeight - 40) / 720);
+      scale = Math.max(0.2, scale);
+      stage.style.transform = 'scale(' + scale + ')';
+      fit.style.width = (1280 * scale) + 'px';
+      fit.style.height = (720 * scale) + 'px';
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { show(current + 1); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { show(current - 1); e.preventDefault(); }
+      else if (e.key === 'Home') { show(0); }
+      else if (e.key === 'End') { show(slides.length - 1); }
+    });
+    document.getElementById('prev').addEventListener('click', function () { show(current - 1); });
+    document.getElementById('next').addEventListener('click', function () { show(current + 1); });
+    window.addEventListener('resize', resize);
+
+    resize();
+    show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+  })();
+</script>

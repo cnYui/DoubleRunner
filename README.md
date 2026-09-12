@@ -1,65 +1,65 @@
-# 跑伴 DoubleRunner
+# DoubleRunner
 
-Rokid Glasses 上的跑步步频助手（AIUI 0.17.0，单绿显示）。戴着眼镜跑步时，页面用眼镜的陀螺仪画出最近 6 秒的步态曲线，从曲线里检测每一步和当前步频，并按目标步频（默认 180）播放节拍提示；每次跑步保存为记录，跑完显示整段的步频曲线和达标率。
+A running-cadence companion for Rokid Glasses (AIUI 0.17.0, single-green display). While you run in the glasses, the page charts the last 6 seconds of head-mounted gyroscope motion, detects every step and your current cadence from that curve, and plays a metronome at the target cadence (default 180). Every run is saved as a record; when you finish, the page draws the cadence chart for the whole run plus the share of time spent on target.
 
-## 眼镜画布与比例
+## Canvas and proportions
 
-| 层 | 尺寸 | 来源 |
+| Layer | Size | Source |
 | --- | --- | --- |
-| 光学画布（整个显示区） | 480 × 640 px，3:4 竖屏 | AIUI Studio 1.1.0 真机模拟的 `.device-screen`，与官方光学设计指南一致 |
-| AIUI 页面视口（Page 实际渲染区） | 480 × 352 px，15:11 横向 | Studio 效果预览画布（点「进入」后显示 `480 × 352 px`），与 0.17 附带的单绿设计规范的参考画布一致 |
-| 安全区 | 左右 16 px、上下 12 px，内容宽 448 px | 设计规范 |
-| 对话流内联卡片 | 448 × 150 px | Studio 的 `/debug` 卡片（`onLoad` 时 `wx.getWindowInfo()` 返回 448 × 150） |
+| Optical canvas (the whole display area) | 480 x 640 px, 3:4 portrait | The `.device-screen` of AIUI Studio 1.1.0's device simulation, matching the official optical design guide |
+| AIUI page viewport (where the Page actually renders) | 480 x 352 px, 15:11 landscape | The Studio effect-preview canvas (it reports `480 x 352 px` after you tap "enter"), matching the reference canvas in the single-green design spec shipped with 0.17 |
+| Safe area | 16 px left/right, 12 px top/bottom, 448 px of content width | Design spec |
+| Inline card in the conversation flow | 448 x 150 px | Studio's `/debug` card (`wx.getWindowInfo()` returns 448 x 150 in `onLoad`) |
 
-页面按 480 × 352 布局：顶部状态行（20 px），曲线框 448 × 152，四个指标（当前步频 44 px 大字、目标步频、节拍实际频率、步数），底部一行操作提示。高度不足 240 px 时（内联卡片）只保留状态、步频、目标和提示。全部颜色只用 `#40ff5e` 的 100 / 72 / 48 / 24 / 12 % 亮度；结构线 1 px，控件圆角 4 px，面板圆角 6 px，大面积填充不超过 12 %。
+The page is laid out for 480 x 352: a status row (20 px), a 448 x 152 curve frame, four metrics (cadence in 44 px figures, target cadence, achieved beat rate, step count), and one hint line at the bottom. Below 240 px of height (the inline card) only the state, cadence, target, and hint survive. Every colour is `#40ff5e` at 100 / 72 / 48 / 24 / 12 % luminance; structural lines are 1 px, controls have 4 px corners, panels 6 px, and no fill covers more than 12 %.
 
-## 页面
+## The page
 
 ```text
-跑伴 · 步频节拍                       [跑步中]  12:34
+DOUBLERUNNER · CADENCE                [RUNNING]  12:34
 ┌──────────────────────────────────────────────┐
-│ GYRO 60Hz · rad/s                       6s  ◉ │  ← 最近 6 秒陀螺仪主轴角速度，检测到的步用实心点和顶部刻度标出
-│        ╭╮    ╭╮    ╭╮    ╭╮    ╭╮    ╭╮        │     虚线是自适应阈值，◉ 是节拍圆点（每拍点亮 110 ms）
-│  ─────╯╰───╯╰────╯╰───╯╰───╯╰───╯╰───────  │
-└──────────────────────────────────────────────┘
-176          180            3.0          2180
-spm 当前步频   目标步频 · -4 偏慢  节拍 次/秒    步数
-单击 暂停 · 前后滑动 调整目标步频
+│ GYRO 60Hz · rad/s                       6s  ◉ │  ← last 6 s of gyroscope angular velocity; detected steps
+│        ╭╮    ╭╮    ╭╮    ╭╮    ╭╮    ╭╮        │     are marked with a dot and a tick along the top edge.
+│  ─────╯╰───╯╰────╯╰───╯╰───╯╰───╯╰───────  │     The dashed line is the adaptive threshold; ◉ is the
+└──────────────────────────────────────────────┘     beat dot (lit for 110 ms per beat).
+176           180             3.0          2180
+spm · cadence  target · -4 slow  beats / sec  steps
+Click: pause  ·  Swipe: target cadence +/-5
 ```
 
-| 状态 | 单击 | 向前滑动 | 向后滑动 |
+| State | Click | Swipe forward | Swipe back |
 | --- | --- | --- | --- |
-| 待命 | 开始跑步 | 目标 +5 | 目标 −5 |
-| 跑步中 | 暂停 | 目标 +5（节拍实时改速） | 目标 −5 |
-| 已暂停 | 继续 | 目标 +5 | **结束并保存** |
-| 已结束（显示整段步频图、平均步频、达标率、用时、步数） | 准备下一次跑步 | — | — |
+| READY | start the run | target +5 | target -5 |
+| RUNNING | pause | target +5 (the metronome changes tempo live) | target -5 |
+| PAUSED | resume | target +5 | **finish and save** |
+| DONE (cadence chart for the run, average cadence, share on target, elapsed, steps) | get ready for the next run | — | — |
 
-返回键交给宿主；离开页面时正在跑步会自动暂停，未结束的跑步（有步数）在卸载时静默保存。
+The Back key is left to the host. Leaving the page while running pauses automatically; an unfinished run with steps is saved silently on unload.
 
-## 步频检测
+## Cadence detection
 
-`lib/cadence.js`，纯函数，可在 Node 里回放：
+`lib/cadence.js`, pure functions, replayable in Node:
 
-1. 每个轴去掉慢变化基线（一阶高通，τ = 0.8 s）；
-2. 取最近方差最大的轴（带 30 % 迟滞，头部俯仰轴通常胜出），带符号使用；
-3. 一阶低通平滑（τ = 40 ms）；
-4. 局部最大值高于自适应阈值（`max(0.35 rad/s, 0.9 × RMS)`）算一步，但必须在上一步之后信号回到基线以下（"armed"），这样一次点头的两个波瓣只算一步；两步间隔 250～1500 ms；
-5. 步频 = 60000 / 最近 8 个步间隔的中位数，再做 35 % 的平滑；2.5 s 没有步则归零。
+1. Remove the slow drift from each axis (first-order high-pass, tau = 0.8 s);
+2. Take the axis with the largest recent variance (30 % hysteresis, so the head-pitch axis usually wins), signed;
+3. Smooth with a first-order low-pass (tau = 40 ms);
+4. A local maximum above the adaptive threshold (`max(0.35 rad/s, 0.9 x RMS)`) is a step, but only once the signal has returned below the baseline since the previous step ("armed"), so the two lobes of one nod are not counted twice; steps must be 250 to 1500 ms apart;
+5. Cadence = 60000 / the median of the last 8 step intervals, then smoothed by 35 %; it returns to zero after 2.5 s without a step.
 
-陀螺仪不可用时用同一算法接加速度计（阈值 1.2 m/s²，重力由高通去掉）。`tests/cadence.test.js` 用 `lib/demo.js` 的合成信号验证：180 / 172 / 110 spm 误差 ≤ 3，噪声不计步，160→184 的变化几秒内跟上，停下后归零。
+When the gyroscope is unavailable the same detector runs on the accelerometer (threshold 1.2 m/s², gravity removed by the high-pass). `tests/cadence.test.js` verifies it against the synthetic signal from `lib/demo.js`: 180 / 172 / 110 spm within 3 spm, noise produces no steps, a 160 to 184 change is tracked within seconds, and stopping returns the reading to zero.
 
-## 节拍与震动
+## Metronome and haptics
 
-**AIUI 0.17 / 0.18 没有震动接口**：仓库 `yodaos-project/AIUI` 的文档、示例和 `wx.*` 兼容列表里都没有 vibrate / haptic；Studio 1.1.0 运行时 `navigator.vibrate` 也不存在（页面启动日志 `vibrate=no`）。所以“按 180 步频震动”做不到，节拍改为：
+**AIUI 0.17 / 0.18 has no vibration API**: the `yodaos-project/AIUI` repository has no vibrate or haptic entry in its documentation, samples, or `wx.*` compatibility list, and `navigator.vibrate` does not exist in the Studio 1.1.0 runtime either (the page logs `vibrate=no` at startup). "Buzz at 180 spm" is therefore not buildable, so the beat is:
 
-- 声音：`Sound`（0.17 文档里的本地短音效）播放 `assets/tick.wav`（1200 Hz，35 ms），每第 4 拍用 `tick-accent.wav`（1800 Hz，45 ms）；`Sound` 不可用时退到 `AudioContext` 合成音；都没有时只剩画面。
-- 画面：曲线框右上角的圆点每拍点亮 110 ms；“节拍 次/秒”显示最近 12 拍的实际频率。
+- Audible: `Sound` (the local short sound effect documented in 0.17) plays `assets/tick.wav` (1200 Hz, 35 ms), with `tick-accent.wav` (1800 Hz, 45 ms) on every fourth beat; if `Sound` is missing it falls back to a synthesised `AudioContext` tone, and if neither exists only the visuals remain.
+- Visual: the dot in the top-right corner of the curve frame lights for 110 ms per beat, and "beats / sec" shows the achieved rate over the last 12 beats.
 
-调度用 `lib/metronome.js`：每一拍的时间都从起点 + 序号 × 间隔算出，不从上一次回调累加，所以回调迟到不会累积漂移；180 spm = 每 333 ms 一拍 = 3 次/秒，`tests/metronome.test.js` 在理想时钟上验证了 10 拍/3 秒和迟到不漂移。运行时实际能达到的频率见下面的实测。
+Scheduling lives in `lib/metronome.js`: each beat's due time is computed from the anchor plus the beat index rather than accumulated from the previous callback, so a late callback cannot drift. 180 spm = one beat per 333 ms = 3 beats per second, and `tests/metronome.test.js` verifies 10 beats in 3 seconds on an ideal clock plus no drift under late delivery. Because the Studio host does not deliver `setTimeout` reliably, the page also polls the metronome from its frame loop and UI refresh, so the beat keeps up as long as the page renders.
 
-## 导入 AIUI Studio
+## Importing into AIUI Studio
 
-AIUI 工程根是仓库里的 `agent/` 子目录（它直接包含 `app.json`），不是仓库根：
+The AIUI project root is the `agent/` subdirectory (it is what contains `app.json`), not the repository root:
 
 ```text
 Repository: https://github.com/cnYui/DoubleRunner
@@ -67,42 +67,43 @@ Ref: main
 AIUI project directory: agent
 ```
 
-Studio 左上角「新建智能体」→「GitHub 导入」填 `https://github.com/cnYui/DoubleRunner/tree/main/agent`，导入后在项目「···」菜单选「上传云端」，再在对话框发送 `/debug 模拟眼镜设备运行当前页面 pages/run/index`，卡片上点「进入」。同一地址再导入会就地更新。
+In Studio use "New agent" > "GitHub import" with `https://github.com/cnYui/DoubleRunner/tree/main/agent`, then "Upload to cloud" from the project's "..." menu, then send `/debug simulate the glasses device running the current page pages/run/index` in the chat box and tap "enter" on the card. Re-importing the same URL updates the project in place.
 
-## Studio 1.1.0 实测（2026-09-11）
+## Measured in Studio 1.1.0 (2026-09-11)
 
-- 生命周期：`onTargetChanged(undefined → _current)` → `onLoad`（`wx.getWindowInfo()` = 448 × 150）→ `onShow`；点「进入」后画布移入 480 × 352 的效果预览。
-- 镜腿：单击 = `GlobalHook` + `Enter`（页面只执行一次动作）；向前 / 向后滑动 = `GlobalHook` + `ArrowUp` / `ArrowDown`。
-- **Web 宿主没有 IMU**：`Gyroscope`、`Accelerometer` 都能构造，`start()` 后立刻收到 `error: Host capability gyroscope.start is not configured on Web host`（加速度计同样）。页面按设计退到演示信号：状态标签带「· 演示」，曲线框标注 `DEMO 演示信号`，通知行写“传感器不可用 · 显示演示信号”。真实的陀螺仪读数只能在眼镜上验证。
-- `Sound` 可用（系统日志 `Web audio playback started`），`AudioContext` 不存在，`navigator.vibrate` 不存在，`localStorage` 可用，Canvas 通过 `wx.createCanvasContext` 取得。
-- 节拍和演示信号的定时器在 Studio 运行时的实际触发情况：见仓库 `CLAUDE.md` 的实测记录（`diag` 日志每 5 秒一行）。
+- Lifecycle: `onTargetChanged(undefined -> _current)` then `onLoad` (`wx.getWindowInfo()` = 448 x 150) then `onShow`; after "enter" the canvas moves into the 480 x 352 effect preview.
+- Temple input: click = `GlobalHook` + `Enter` (the page acts exactly once); swipe forward / back = `GlobalHook` + `ArrowUp` / `ArrowDown`.
+- **The web host has no IMU**: `Gyroscope` and `Accelerometer` both construct, but `start()` immediately reports `error: Host capability gyroscope.start is not configured on Web host` (the accelerometer likewise). The page falls back to the demo signal by design: the state chip reads `· DEMO`, the curve frame is labelled `DEMO signal`, and the notice line says "No sensor · showing demo signal". Real gyroscope readings can only be verified on the glasses.
+- `Sound` works (system log `Web audio playback started`), `AudioContext` does not exist, `navigator.vibrate` does not exist, `localStorage` works, and the canvas context comes from `wx.createCanvasContext`.
+- Timer behaviour for the beat and the demo signal: see `CLAUDE.md` (the `diag` log line, once every 5 seconds).
 
-## 未验证
+## Not verified
 
-- 眼镜真机上的陀螺仪读数、步频检测准确度、节拍声音和 3 次/秒的实际稳定性、光学、按键顺序、性能。模拟器结论不等于真机通过。
-- 语音路由（“开始跑步”“步频 175”→ `targetCadence`）：草稿态智能体不注册 schema，需要在 Studio 或真机上用语音验证。
+- On real glasses: gyroscope readings, cadence accuracy, beat audio and the stability of 3 beats per second, optics, key order, performance. A simulator result is not a device result.
+- Voice routing ("start a run", "cadence 175" to `targetCadence`): a draft agent does not register its schema, so this needs Studio or a device to verify.
 
-## 目录
+## Layout
 
 ```text
-agent/                     AIUI Studio 导入根（AIUI 0.17.0）
-  AGENTS.md                智能体身份、语音路由规则、能力边界
+agent/                     AIUI Studio import root (AIUI 0.17.0)
+  AGENTS.md                agent identity, voice routing rules, capability boundaries
   app.json                 pages: run
-  pages/run/index.ink      跑步页（曲线、步频、节拍、记录）
-  lib/cadence.js           步频检测（高通 → 主轴 → 低通 → 自适应阈值峰值）
-  lib/metronome.js         无漂移节拍调度器
-  lib/curve.js             实时曲线与跑后步频图的 Canvas 绘制
-  lib/records.js           每秒聚合、记录摘要、localStorage 持久化（最多 20 条）
-  lib/demo.js              合成跑步信号（测试与演示模式）
-  lib/temple.js            镜腿输入去重
-  assets/tick*.wav         节拍音效（tools/make_ticks.py 生成）
-  aiui-audit-claims.json   审计声明
-tests/                     Node 测试（不进 Studio，也不进安装包）
-tools/                     build_audit.py（审计矩阵）、make_ticks.py（音效）
-docs/aiui-audit.md         UX / 能力审计矩阵（本机无签名权威，所有层为 BLOCKED）
+  pages/run/index.ink      the run page (curve, cadence, metronome, records)
+  lib/cadence.js           cadence detection (high-pass, axis pick, low-pass, adaptive-threshold peaks)
+  lib/metronome.js         drift-free beat scheduler
+  lib/curve.js             canvas drawing for the live curve and the post-run chart
+  lib/records.js           per-second aggregation, record summaries, localStorage (newest 20)
+  lib/demo.js              synthetic running signal (tests and demo mode)
+  lib/temple.js            temple input de-duplication
+  assets/tick*.wav         beat sounds (generated by tools/make_ticks.py)
+  aiui-audit-claims.json   audit claims
+tests/                     Node tests (never shipped to Studio or into the package)
+tools/                     build_audit.py (audit matrix), make_ticks.py (sounds)
+docs/aiui-audit.md         UX / capability audit matrix (no signing authority here, so every layer is BLOCKED)
+docs/presentation.html     product presentation deck (open in a browser)
 ```
 
-## 开发
+## Development
 
 ```bash
 npm test
@@ -110,4 +111,4 @@ npm run validate
 npm run audit
 ```
 
-需要 Node 20+ 和 Python 3。`npm test` 的 `tests/page.test.js` 会把 `.ink` 里的 `<script setup>` 当作真实模块加载，用假的 Gyroscope、Sound、localStorage 和 wx 跑完整个状态机；这些假对象只在 `tests/` 里，不会进 Studio 或安装包。
+Node 20+ and Python 3 are required. `tests/page.test.js` loads the `<script setup>` block of the `.ink` file as a real module and drives the whole state machine with fake Gyroscope, Sound, localStorage, and wx objects; those fakes live only in `tests/` and never reach Studio or the package.

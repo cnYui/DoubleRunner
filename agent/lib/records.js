@@ -118,9 +118,9 @@ export function formatRecordLine(record, offsetMinutes) {
   const stamp =
     shifted.getUTCMonth() + 1 + '/' + shifted.getUTCDate() + ' ' +
     pad(shifted.getUTCHours()) + ':' + pad(shifted.getUTCMinutes());
-  const demo = record.source === 'demo' ? ' · 演示' : '';
+  const demo = record.source === 'demo' ? ' · demo' : '';
   return (
-    stamp + ' · ' + formatDuration(record.activeMs) + ' · ' + record.steps + ' 步 · 平均 ' +
+    stamp + ' · ' + formatDuration(record.activeMs) + ' · ' + record.steps + ' steps · avg ' +
     record.avgCadence + ' spm' + demo
   );
 }

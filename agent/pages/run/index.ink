@@ -1,7 +1,7 @@
 <script def>
 {
-  "navigationBarTitleText": "跑伴",
-  "description": "跑步辅助：显示眼镜陀螺仪的步态曲线、检测当前步频，并按目标步频播放节拍提示。用户说“开始跑步”“陪我跑步”“步频 180”“把步频改成 170”等时调用；把目标步频换算成整数 targetCadence 传入。",
+  "navigationBarTitleText": "DoubleRunner",
+  "description": "Running companion: charts the glasses gyroscope stride curve, detects the current cadence, and plays a metronome at the target cadence. Invoke when the user says things like 'start a run', 'run with me', 'cadence 180', or 'change the cadence to 170'; pass the target cadence as the integer targetCadence.",
   "schema": {
     "data": {
       "type": "object",
@@ -11,12 +11,12 @@
           "minimum": 120,
           "maximum": 220,
           "default": 180,
-          "description": "目标步频（每分钟步数）。用户没有指定时用 180。"
+          "description": "Target cadence in steps per minute. Use 180 when the user does not give one."
         },
         "demo": {
           "type": "boolean",
           "default": false,
-          "description": "调试用：用合成的跑步信号代替传感器。只有用户明确要求演示或模拟信号时才为 true。"
+          "description": "Debug only: replace the sensor with a synthetic stride signal. True only when the user explicitly asks for a demo or simulated signal."
         }
       }
     }
@@ -62,29 +62,29 @@ const DEMO_CATCH_UP_MS = 500;
 const DEMO_WHEN_UNAVAILABLE = true;
 
 const STATE_LABELS = {
-  idle: '待命',
-  running: '跑步中',
-  paused: '已暂停',
-  finished: '已结束'
+  idle: 'READY',
+  running: 'RUNNING',
+  paused: 'PAUSED',
+  finished: 'DONE'
 };
 
 const HINTS = {
-  idle: '单击 开始跑步 · 前后滑动 调整目标步频',
-  running: '单击 暂停 · 前后滑动 调整目标步频',
-  paused: '单击 继续 · 向后滑动 结束并保存',
-  finished: '单击 准备下一次跑步'
+  idle: 'Click: start run  ·  Swipe: target cadence +/-5',
+  running: 'Click: pause  ·  Swipe: target cadence +/-5',
+  paused: 'Click: resume  ·  Swipe back: finish and save',
+  finished: 'Click: get ready for the next run'
 };
 
 const SOURCE_LABELS = {
   gyroscope: 'GYRO',
   accelerometer: 'ACCEL',
-  demo: 'DEMO 演示信号',
-  none: '无传感器'
+  demo: 'DEMO signal',
+  none: 'NO SENSOR'
 };
 
 const SENSOR_NAMES = {
-  gyroscope: '陀螺仪',
-  accelerometer: '加速度计'
+  gyroscope: 'Gyroscope',
+  accelerometer: 'Accelerometer'
 };
 
 function log(message) {
@@ -108,10 +108,10 @@ function normalizeQuery(query) {
 }
 
 function describeDelta(cadence, target) {
-  if (!cadence) return '等待步伐';
+  if (!cadence) return 'waiting';
   const delta = cadence - target;
-  if (Math.abs(delta) <= 3) return '与目标一致';
-  return delta > 0 ? '+' + delta + ' 偏快' : delta + ' 偏慢';
+  if (Math.abs(delta) <= 3) return 'on pace';
+  return delta > 0 ? '+' + delta + ' fast' : delta + ' slow';
 }
 
 export default {
@@ -120,14 +120,14 @@ export default {
     stateLabel: STATE_LABELS.idle,
     clock: '00:00',
     cadenceText: '--',
-    mainLabel: 'spm 当前步频',
+    mainLabel: 'spm · cadence',
     targetCadence: DEFAULT_TARGET,
     targetText: String(DEFAULT_TARGET),
-    targetLabel: '目标步频 · 等待步伐',
+    targetLabel: 'target · waiting',
     beatRateText: '--',
-    beatLabel: '节拍 次/秒',
+    beatLabel: 'beats / sec',
     stepsText: '0',
-    stepsLabel: '步数',
+    stepsLabel: 'steps',
     hint: HINTS.idle,
     notice: '',
     lastRecordText: ''
@@ -193,7 +193,7 @@ export default {
     this.setData({
       targetCadence: this._target,
       targetText: String(this._target),
-      lastRecordText: records.length ? '上次 ' + formatRecordLine(records[0], this._offsetMinutes()) : ''
+      lastRecordText: records.length ? 'Last ' + formatRecordLine(records[0], this._offsetMinutes()) : ''
     });
     this._createSensor();
     log(
@@ -390,7 +390,7 @@ export default {
     this._session = null;
     const records = loadRecords(this._storage);
     this.setData({
-      lastRecordText: records.length ? '上次 ' + formatRecordLine(records[0], this._offsetMinutes()) : ''
+      lastRecordText: records.length ? 'Last ' + formatRecordLine(records[0], this._offsetMinutes()) : ''
     });
     this._startSource();
     this._applyPhase();
@@ -400,24 +400,24 @@ export default {
     const phase = this._phase;
     const patch = {
       state: phase,
-      stateLabel: STATE_LABELS[phase] + (this._source === 'demo' ? ' · 演示' : ''),
+      stateLabel: STATE_LABELS[phase] + (this._source === 'demo' ? ' · DEMO' : ''),
       hint: HINTS[phase]
     };
     if (phase === 'finished' && this._record) {
       const record = this._record;
       patch.cadenceText = record.avgCadence ? String(record.avgCadence) : '--';
-      patch.mainLabel = 'spm 平均步频';
+      patch.mainLabel = 'spm · average';
       patch.targetText = String(record.targetCadence);
-      patch.targetLabel = '目标 · 达标 ' + Math.round(record.inTargetRatio * 100) + '%';
+      patch.targetLabel = 'target · hit ' + Math.round(record.inTargetRatio * 100) + '%';
       patch.beatRateText = formatDuration(record.activeMs);
-      patch.beatLabel = '用时';
+      patch.beatLabel = 'elapsed';
       patch.stepsText = String(record.steps);
-      patch.stepsLabel = '步数 · 已保存';
+      patch.stepsLabel = 'steps · saved';
       patch.clock = formatDuration(record.activeMs);
     } else {
-      patch.mainLabel = 'spm 当前步频';
-      patch.beatLabel = '节拍 次/秒';
-      patch.stepsLabel = '步数';
+      patch.mainLabel = 'spm · cadence';
+      patch.beatLabel = 'beats / sec';
+      patch.stepsLabel = 'steps';
       patch.targetText = String(this._target);
     }
     this.setData(patch);
@@ -487,7 +487,8 @@ export default {
     const wasActive = this._sourceActive;
     this._sourceActive = false;
     if (this._createSensor()) {
-      this._notice = SENSOR_NAMES[kind] + '不可用，改用' + SENSOR_NAMES[this._sensorKind];
+      this._notice =
+        SENSOR_NAMES[kind] + ' unavailable · switched to ' + SENSOR_NAMES[this._sensorKind].toLowerCase();
       this.setData({ notice: this._notice });
       if (wasActive) this._startSource();
       return;
@@ -536,7 +537,7 @@ export default {
       this._startDemo('sensor unavailable');
     } else {
       this._source = 'none';
-      this.setData({ notice: '传感器不可用 · 仅节拍提示' });
+      this.setData({ notice: 'No sensor · metronome only' });
     }
   },
 
@@ -569,7 +570,10 @@ export default {
     this._demoLastT = null;
     this._demoTimer = setInterval(() => this._demoTick(), DEMO_SAMPLE_MS);
     this.setData({
-      notice: reason === 'requested' ? '演示信号：合成的跑步动作，不是传感器数据' : '传感器不可用 · 显示演示信号'
+      notice:
+        reason === 'requested'
+          ? 'Demo signal · synthetic stride, not sensor data'
+          : 'No sensor · showing demo signal'
     });
     log('demo start reason=' + reason);
     this._applyPhase();
@@ -805,7 +809,7 @@ export default {
           series: this._record.series,
           targetCadence: this._record.targetCadence,
           totalSeconds: Math.max(1, Math.ceil(this._record.activeMs / 1000)),
-          label: '本次步频 spm · 虚线为目标'
+          label: 'cadence spm · dashed = target'
         });
         return;
       }
@@ -898,7 +902,7 @@ export default {
     const patch = {
       clock: formatDuration(elapsed),
       cadenceText: cadence ? String(cadence) : '--',
-      targetLabel: '目标步频 · ' + describeDelta(cadence, this._target),
+      targetLabel: 'target · ' + describeDelta(cadence, this._target),
       beatRateText: this._metronome.running && stats.achievedRate ? stats.achievedRate.toFixed(1) : '--',
       stepsText: String(this._runSteps)
     };
@@ -960,7 +964,7 @@ export default {
 
 <page class="shell">
   <view class="top">
-    <text class="brand">跑伴 · 步频节拍</text>
+    <text class="brand">DOUBLERUNNER · CADENCE</text>
     <view class="top-right">
       <text class="chip chip-{{state}}">{{stateLabel}}</text>
       <text class="clock">{{clock}}</text>

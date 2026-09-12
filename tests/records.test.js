@@ -79,6 +79,6 @@ test('formatting helpers', () => {
     avgCadence: 177,
     source: 'demo'
   };
-  assert.equal(formatRecordLine(record, 480), '9/11 17:05 · 30:30 · 5400 步 · 平均 177 spm · 演示');
-  assert.equal(formatRecordLine({ ...record, source: 'gyroscope' }, 0), '9/11 09:05 · 30:30 · 5400 步 · 平均 177 spm');
+  assert.equal(formatRecordLine(record, 480), '9/11 17:05 · 30:30 · 5400 steps · avg 177 spm · demo');
+  assert.equal(formatRecordLine({ ...record, source: 'gyroscope' }, 0), '9/11 09:05 · 30:30 · 5400 steps · avg 177 spm');
 });

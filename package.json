@@ -2,14 +2,15 @@
   "name": "doublerunner",
   "version": "0.1.0",
   "private": true,
-  "description": "DoubleRunner (跑伴): a Rokid Glasses AIUI agent that charts the head-mounted gyroscope while you run, detects your cadence, and keeps a metronome at the target cadence.",
+  "description": "DoubleRunner: a Rokid Glasses AIUI agent that charts the head-mounted gyroscope while you run, detects your cadence, and keeps a metronome at the target cadence.",
   "type": "module",
   "scripts": {
     "test": "node --test",
     "validate": "python C:/Users/yui/.claude/skills/rokid-aiui-agent/scripts/validate_aiui_project.py agent --repository-root . --target-version 0.17.0 --strict",
     "inventory": "python C:/Users/yui/.claude/skills/rokid-aiui-agent/scripts/inventory_aiui_capabilities.py agent --repository-root . --target-version 0.17.0",
     "audit": "python tools/build_audit.py",
-    "ticks": "python tools/make_ticks.py"
+    "ticks": "python tools/make_ticks.py",
+    "deck": "python tools/build_deck.py"
   },
   "engines": {
     "node": ">=20"

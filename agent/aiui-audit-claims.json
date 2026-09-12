@@ -1,1 +1,1 @@
-{"schemaVersion":1,"scopeClosed":true,"claims":[{"family":"input.voice.unknown","surface":"App","description":"Spoken run requests such as 开始跑步 or 步频 180 open the run Page with targetCadence"}]}
+{"schemaVersion":1,"scopeClosed":true,"claims":[{"family":"input.voice.unknown","surface":"App","description":"Spoken run requests such as 'start a run' or 'cadence 180' open the run Page with targetCadence"}]}
