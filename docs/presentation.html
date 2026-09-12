@@ -907,6 +907,9 @@ delay = max(0, round(dueAt - now()));</div>
     window.addEventListener('resize', resize);
 
     resize();
+    window.addEventListener('hashchange', function () {
+      show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+    });
     show((parseInt(location.hash.slice(1), 10) || 1) - 1);
   })();
 </script>
