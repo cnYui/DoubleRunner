@@ -1,7 +1,7 @@
 <script def>
 {
   "navigationBarTitleText": "DoubleRunner",
-  "description": "Running companion: charts the glasses gyroscope stride curve, detects the current cadence, and plays a metronome at the target cadence. Invoke when the user says things like 'start a run', 'run with me', 'cadence 180', or 'change the cadence to 170'; pass the target cadence as the integer targetCadence.",
+  "description": "Running coach: a 3D pace coach runs in front of you at the target cadence while the glasses gyroscope measures your own cadence and a metronome keeps the beat. Invoke when the user says things like 'start a run', 'run with me', 'cadence 180', or 'change the cadence to 170'; pass the target cadence as the integer targetCadence.",
   "schema": {
     "data": {
       "type": "object",
@@ -41,8 +41,9 @@ import {
   normalizeOffsetMinutes
 } from '../../lib/records.js';
 import { createTempleInput } from '../../lib/temple.js';
+import { createCoach, drawCoachScene, describeGap } from '../../lib/coach.js';
 
-const BUILD = '2026-09-11.1';
+const BUILD = '2026-11-12.1';
 const DEFAULT_TARGET = 180;
 const MIN_TARGET = 120;
 const MAX_TARGET = 220;
@@ -51,6 +52,10 @@ const SENSOR_FREQUENCY = 60;
 const WINDOW_MS = 6000;
 const CANVAS_WIDTH = 446;
 const CANVAS_HEIGHT = 150;
+const CURVE_HEIGHT = 66;
+const COACH_CANVAS_WIDTH = 198;
+const COACH_CANVAS_HEIGHT = 176;
+const COACH_SCALE = 0.86;
 const FRAME_MS = 50;
 const UI_MS = 200;
 const DEMO_SAMPLE_MS = Math.round(1000 / SENSOR_FREQUENCY);
@@ -129,6 +134,9 @@ export default {
     stepsText: '0',
     stepsLabel: 'steps',
     hint: HINTS.idle,
+    done: false,
+    coachCadenceText: String(DEFAULT_TARGET),
+    gapText: 'coach ready',
     notice: '',
     lastRecordText: ''
   },
@@ -167,8 +175,11 @@ export default {
     this._demoTimer = null;
     this._demoSignal = null;
     this._demoLastT = null;
-    this._ctxCache = null;
+    this._ctxCache = {};
     this._ctxVia = '';
+    this._ctxHoldUntil = 0;
+    this._wasDone = false;
+    this._coach = createCoach({ cadence: this._target });
     this._uiSnapshot = '';
     this._notice = '';
     this._demoTicks = 0;
@@ -193,6 +204,7 @@ export default {
     this.setData({
       targetCadence: this._target,
       targetText: String(this._target),
+      coachCadenceText: String(this._target),
       lastRecordText: records.length ? 'Last ' + formatRecordLine(records[0], this._offsetMinutes()) : ''
     });
     this._createSensor();
@@ -301,8 +313,9 @@ export default {
     this._target = next;
     if (this._session) this._session.targetCadence = next;
     if (this._metronome.running) this._metronome.setBpm(next);
+    this._coach.setCadence(next);
     log('target -> ' + next);
-    this.setData({ targetCadence: next, targetText: String(next) });
+    this.setData({ targetCadence: next, targetText: String(next), coachCadenceText: String(next) });
     this._refreshUi(true);
     return true;
   },
@@ -322,6 +335,7 @@ export default {
       source: this._source === 'none' ? 'none' : this._source
     });
     this._startSource();
+    this._coach.resetSteps();
     this._metronome.start(this._target, now);
     this._resumeAudio();
     log('run start target=' + this._target + ' source=' + this._source);
@@ -400,9 +414,18 @@ export default {
     const phase = this._phase;
     const patch = {
       state: phase,
+      done: phase === 'finished',
       stateLabel: STATE_LABELS[phase] + (this._source === 'demo' ? ' · DEMO' : ''),
       hint: HINTS[phase]
     };
+    // The canvases are rebuilt when the layout switches between the live
+    // stage and the summary, so drop the cached contexts and give the host a
+    // moment to create the new elements.
+    if ((phase === 'finished') !== this._wasDone) {
+      this._wasDone = phase === 'finished';
+      this._ctxCache = {};
+      this._ctxHoldUntil = this._now() + 120;
+    }
     if (phase === 'finished' && this._record) {
       const record = this._record;
       patch.cadenceText = record.avgCadence ? String(record.avgCadence) : '--';
@@ -642,6 +665,7 @@ export default {
 
   _onBeat(beat) {
     this._lastBeatAt = beat.at;
+    if (this._phase === 'running') this._coach.syncToBeat();
     this._playTick(beat.accent);
     if (beat.index === 1 || (beat.index > 0 && beat.index % 30 === 0)) {
       const stats = this._metronome.stats();
@@ -794,16 +818,19 @@ export default {
     this._metronome.poll();
     if (this._demoSignal) this._demoTick();
     const now = this._now();
+    // The coach keeps its own phase; a foot landing is a visual beat too.
+    this._coach.advance(now, this._phase === 'running');
     if (now - this._lastDrawAt < FRAME_MS - 5) return;
+    if (now < this._ctxHoldUntil) return;
     this._lastDrawAt = now;
     this._frames += 1;
-    const ctx = this._ctx();
-    if (!ctx) return;
     try {
       if (this._phase === 'finished' && this._record) {
         if (this._recordDrawn) return;
+        const chart = this._ctx('chart');
+        if (!chart) return;
         this._recordDrawn = true;
-        drawRecordChart(ctx, {
+        drawRecordChart(chart, {
           width: CANVAS_WIDTH,
           height: CANVAS_HEIGHT,
           series: this._record.series,
@@ -813,19 +840,36 @@ export default {
         });
         return;
       }
-      drawLiveCurve(ctx, {
-        width: CANVAS_WIDTH,
-        height: CANVAS_HEIGHT,
-        now,
-        spanMs: WINDOW_MS,
-        samples: this._buffer.samples,
-        amplitude: this._scale,
-        threshold: this._latest ? this._latest.threshold : 0,
-        beatAt: this._lastBeatAt,
-        running: this._phase === 'running',
-        label: SOURCE_LABELS[this._source] + ' ' + SENSOR_FREQUENCY + 'Hz · ' + (this._latest ? this._latest.unit : ''),
-        sublabel: (WINDOW_MS / 1000) + 's'
-      });
+      const coach = this._ctx('coach');
+      if (coach) {
+        drawCoachScene(coach, {
+          width: COACH_CANVAS_WIDTH,
+          height: COACH_CANVAS_HEIGHT,
+          scale: COACH_SCALE,
+          frame: this._coach.frame(),
+          now,
+          scroll: this._coach.scroll,
+          lastStrikeAt: this._coach.lastStrikeAt,
+          gapSteps: this._gapSteps(),
+          running: this._phase === 'running'
+        });
+      }
+      const curve = this._ctx('curve');
+      if (curve) {
+        drawLiveCurve(curve, {
+          width: CANVAS_WIDTH,
+          height: CURVE_HEIGHT,
+          now,
+          spanMs: WINDOW_MS,
+          samples: this._buffer.samples,
+          amplitude: this._scale,
+          threshold: this._latest ? this._latest.threshold : 0,
+          beatAt: this._lastBeatAt,
+          running: this._phase === 'running',
+          label: SOURCE_LABELS[this._source] + ' ' + SENSOR_FREQUENCY + 'Hz · ' + (this._latest ? this._latest.unit : ''),
+          sublabel: (WINDOW_MS / 1000) + 's'
+        });
+      }
     } catch (error) {
       if (!this._frameErrorLogged) {
         this._frameErrorLogged = true;
@@ -834,12 +878,18 @@ export default {
     }
   },
 
-  _ctx() {
-    if (this._ctxCache) return this._ctxCache;
+  // Steps you are ahead (+) or behind (-) of the coach since the run began.
+  _gapSteps() {
+    if (this._phase !== 'running') return 0;
+    return this._runSteps - this._coach.steps;
+  },
+
+  _ctx(id) {
+    if (this._ctxCache[id]) return this._ctxCache[id];
     let ctx = null;
     let via = '';
     try {
-      const element = typeof this.querySelector === 'function' ? this.querySelector('#curve') : null;
+      const element = typeof this.querySelector === 'function' ? this.querySelector('#' + id) : null;
       if (element && typeof element.getContext === 'function') {
         ctx = element.getContext('2d');
         via = 'querySelector';
@@ -849,7 +899,7 @@ export default {
     }
     if (!ctx) {
       try {
-        const component = typeof this.selectComponent === 'function' ? this.selectComponent('#curve') : null;
+        const component = typeof this.selectComponent === 'function' ? this.selectComponent('#' + id) : null;
         if (component && typeof component.getContext === 'function') {
           ctx = component.getContext('2d');
           via = 'selectComponent';
@@ -861,7 +911,7 @@ export default {
     if (!ctx) {
       try {
         if (wx && typeof wx.createCanvasContext === 'function') {
-          ctx = wx.createCanvasContext('curve', this);
+          ctx = wx.createCanvasContext(id, this);
           via = 'wx.createCanvasContext';
         }
       } catch (_error) {
@@ -869,12 +919,12 @@ export default {
       }
     }
     if (ctx) {
-      this._ctxCache = ctx;
+      this._ctxCache[id] = ctx;
       this._ctxVia = via;
-      log('canvas context via ' + via);
+      log('canvas context ' + id + ' via ' + via);
     } else if (!this._ctxMissingLogged) {
       this._ctxMissingLogged = true;
-      log('canvas context unavailable');
+      log('canvas context unavailable: ' + id);
     }
     return ctx;
   },
@@ -904,7 +954,8 @@ export default {
       cadenceText: cadence ? String(cadence) : '--',
       targetLabel: 'target · ' + describeDelta(cadence, this._target),
       beatRateText: this._metronome.running && stats.achievedRate ? stats.achievedRate.toFixed(1) : '--',
-      stepsText: String(this._runSteps)
+      stepsText: String(this._runSteps),
+      gapText: describeGap(this._gapSteps(), this._phase === 'running')
     };
     const snapshot = JSON.stringify(patch);
     if (!force && snapshot === this._uiSnapshot) return;
@@ -962,18 +1013,43 @@ export default {
 };
 </script>
 
-<page class="shell">
+<page class="shell shell-{{state}}">
   <view class="top">
-    <text class="brand">DOUBLERUNNER · CADENCE</text>
+    <text class="brand">DOUBLERUNNER · COACH</text>
     <view class="top-right">
       <text class="chip chip-{{state}}">{{stateLabel}}</text>
       <text class="clock">{{clock}}</text>
     </view>
   </view>
-  <view class="curve-frame">
-    <canvas id="curve" canvas-id="curve" width="446" height="150" class="curve"></canvas>
+
+  <view class="stage" ink:if="{{!done}}">
+    <view class="coach-frame">
+      <canvas id="coach" canvas-id="coach" width="198" height="176" class="coach"></canvas>
+    </view>
+    <view class="stats">
+      <view class="stat">
+        <text class="tag">YOU · GYRO</text>
+        <text class="value-lg">{{cadenceText}}</text>
+        <text class="unit">spm · {{targetLabel}}</text>
+      </view>
+      <view class="stat stat-coach">
+        <text class="tag">COACH</text>
+        <text class="value-md">{{coachCadenceText}}</text>
+        <text class="unit">spm · swipe +/-5</text>
+      </view>
+      <text class="gap">{{gapText}}</text>
+      <text class="unit">{{beatRateText}} {{beatLabel}} · {{stepsText}} {{stepsLabel}}</text>
+      <text class="notice" ink:if="{{notice}}">{{notice}}</text>
+    </view>
   </view>
-  <view class="metrics">
+  <view class="curve-frame" ink:if="{{!done}}">
+    <canvas id="curve" canvas-id="curve" width="446" height="66" class="curve"></canvas>
+  </view>
+
+  <view class="chart-frame" ink:if="{{done}}">
+    <canvas id="chart" canvas-id="chart" width="446" height="150" class="chart"></canvas>
+  </view>
+  <view class="metrics" ink:if="{{done}}">
     <view class="metric metric-main">
       <text class="value-lg">{{cadenceText}}</text>
       <text class="unit">{{mainLabel}}</text>
@@ -991,7 +1067,6 @@ export default {
       <text class="unit">{{stepsLabel}}</text>
     </view>
   </view>
-  <text class="notice" ink:if="{{notice}}">{{notice}}</text>
   <text class="record-line" ink:if="{{lastRecordText}}">{{lastRecordText}}</text>
   <text class="hint">{{hint}}</text>
 </page>
@@ -1061,7 +1136,67 @@ export default {
   color: rgba(64, 255, 94, 0.72);
 }
 
+.stage {
+  display: flex;
+  flex-direction: row;
+  margin-top: 6px;
+  height: 178px;
+}
+
+.coach-frame {
+  width: 200px;
+  height: 178px;
+  border: 1px solid rgba(64, 255, 94, 0.24);
+  border-radius: 2px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.coach {
+  width: 198px;
+  height: 176px;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin-left: 12px;
+  overflow: hidden;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-coach {
+  margin-top: 6px;
+}
+
+.tag {
+  font-size: 10px;
+  line-height: 12px;
+  letter-spacing: 1px;
+  color: rgba(64, 255, 94, 0.48);
+}
+
 .curve-frame {
+  width: 448px;
+  height: 68px;
+  margin-top: 6px;
+  border: 1px solid rgba(64, 255, 94, 0.24);
+  border-radius: 2px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.curve {
+  width: 446px;
+  height: 66px;
+}
+
+.chart-frame {
   width: 448px;
   height: 152px;
   margin-top: 8px;
@@ -1071,7 +1206,7 @@ export default {
   overflow: hidden;
 }
 
-.curve {
+.chart {
   width: 446px;
   height: 150px;
 }
@@ -1100,6 +1235,13 @@ export default {
   color: #40ff5e;
 }
 
+.value-md {
+  font-family: monospace;
+  font-size: 30px;
+  line-height: 32px;
+  color: rgba(64, 255, 94, 0.72);
+}
+
 .value {
   font-family: monospace;
   font-size: 22px;
@@ -1115,9 +1257,16 @@ export default {
   color: rgba(64, 255, 94, 0.48);
 }
 
+.gap {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 16px;
+  color: #40ff5e;
+}
+
 .notice,
 .record-line {
-  margin-top: 6px;
+  margin-top: 4px;
   padding-left: 6px;
   font-size: 11px;
   line-height: 14px;
@@ -1149,18 +1298,37 @@ export default {
 }
 
 /* Inline card in the conversation flow (about 448 x 150): keep the state,
-   the cadence, the target, and the hint; drop the curve and the extras. */
+   the two cadences, and the hint; drop the coach picture and the curve. */
 @media (max-height: 240px) {
   .shell {
     padding: 6px 12px;
   }
   .brand,
+  .coach-frame,
   .curve-frame,
+  .chart-frame,
   .metric-beat,
   .metric-steps,
   .notice,
   .record-line {
     display: none;
+  }
+  .stage {
+    height: auto;
+    margin-top: 4px;
+  }
+  .stats {
+    margin-left: 0;
+    flex-direction: row;
+    align-items: flex-end;
+  }
+  .stat-coach {
+    margin-top: 0;
+    margin-left: 16px;
+  }
+  .gap {
+    margin-top: 0;
+    margin-left: 16px;
   }
   .metrics {
     margin-top: 4px;
@@ -1168,6 +1336,10 @@ export default {
   .value-lg {
     font-size: 34px;
     line-height: 36px;
+  }
+  .value-md {
+    font-size: 24px;
+    line-height: 28px;
   }
   .value {
     font-size: 18px;

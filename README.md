@@ -1,5 +1,7 @@
 # DoubleRunner
 
+**Coach version (0.2.0):** a 3D pace coach now runs in front of you. The coach is the side-on mannequin of the CC0 Quaternius Universal Animation Library (`Jog_Fwd_Loop`), rendered once in Blender and baked into 24 phases of three-level green polygons (`agent/lib/coach-frames.js`, 70 KB, no video or bitmap shipped). Its run cycle is played at the target cadence (a cycle is two steps, so playback speed = cadence / 160.7), a foot lands exactly on every metronome beat, the ground streams past at the coach's pace, and a `YOU` marker sits behind or ahead of the coach by the difference between your detected steps and the coach's steps. Swipe to change the target and the coach changes tempo at once. The glasses show your cadence (gyroscope), the coach cadence, and the coach animation. Rebuild the frames with `blender -b -P tools/render_coach.py -- <UAL1_Standard.glb> <frames_dir>` then `python tools/build_coach.py <frames_dir> agent/lib/coach-frames.js`.
+
 A running-cadence companion for Rokid Glasses (AIUI 0.17.0, single-green display). While you run in the glasses, the page charts the last 6 seconds of head-mounted gyroscope motion, detects every step and your current cadence from that curve, and plays a metronome at the target cadence (default 180). Every run is saved as a record; when you finish, the page draws the cadence chart for the whole run plus the share of time spent on target.
 
 ## Canvas and proportions

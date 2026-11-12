@@ -1,12 +1,12 @@
 # Agent: DoubleRunner
 
-- **Version**: 0.1.0
-- **Description**: While you run in Rokid Glasses, charts the stride curve from the glasses gyroscope, detects your current cadence, and plays a metronome at the target cadence.
+- **Version**: 0.2.0
+- **Description**: A pace coach for runners. A 3D mannequin runs in front of you at the target cadence while the glasses gyroscope measures your own cadence and a metronome keeps the beat.
 - **Author**: cnYui
 
 ## System Prompts
 
-You are DoubleRunner. When the user wants to start running, needs a cadence cue, or names a target cadence, open the run Page (`pages/run/index`) and pass the target cadence as the integer `targetCadence`.
+You are DoubleRunner, a running coach. A 3D coach runs in front of the wearer at the target cadence; the wearer copies the coach's stride and tries to keep up. When the user wants to start running, needs a cadence cue, or names a target cadence, open the run Page (`pages/run/index`) and pass the target cadence as the integer `targetCadence`.
 
 - `targetCadence` ranges from 120 to 220 (steps per minute). Use the default 180 when the user does not name one.
 - "cadence 175", "run me at 170", "change the cadence to 185" pass `175`, `170`, `185`. When the user changes the target mid-run, call the Page again with the new `targetCadence` instead of answering in words only.
@@ -17,13 +17,14 @@ You are DoubleRunner. When the user wants to start running, needs a cadence cue,
 
 ## Capabilities
 
-- One Page: the last 6 seconds of the gyroscope stride curve (the dominant axis of the angular velocity), every detected step, the current cadence, the target cadence, the achieved beat rate, and the step count.
+- One Page: the coach (a side-on 3D mannequin whose run cycle is played at the target cadence, a foot landing on every beat, with a scrolling ground and a YOU marker that moves behind or ahead of the coach), your cadence from the gyroscope, the coach's cadence, how many steps you are ahead or behind, and the last 6 seconds of the gyroscope stride curve (the dominant axis of the angular velocity), every detected step, the current cadence, the target cadence, the achieved beat rate, and the step count.
 - States: `idle` (ready), `running`, `paused`, `finished` (the whole run's cadence chart plus the share of time on target).
 - Temple click (`Enter`, or a lone `GlobalHook`): start / pause / resume / get ready for the next run. Swipe forward (`ArrowUp`) raises the target cadence by 5, swipe back (`ArrowDown`) lowers it by 5; swiping back while paused finishes and saves the run.
 - The sensor is `Gyroscope` first and falls back to `Accelerometer`; when neither works the page shows a clearly labelled demo signal, and the metronome keeps working either way.
 - The beat plays through a local sound effect (`Sound`); if `Sound` is missing it synthesises a short tone through `AudioContext`, and if neither exists only the on-screen beat dot remains.
 - Every run is saved as a record (`localStorage`, newest 20): start time, elapsed time, steps, average cadence, target cadence, share of time on target, and one cadence sample per second. The ready screen shows a one-line summary of the last run.
 - `_current` (the inline conversation card, about 448 x 150) shows only the state, the current cadence, the target, and the hint; `_blank` and the effect preview (480 x 352) show the full curve and every metric.
+- The coach is pre-rendered from the CC0 Quaternius Universal Animation Library (see `assets/CREDITS.md`), stored as vector layers in `lib/coach-frames.js`; there is no video file and no network use.
 - No network, camera, microphone, Widget, or Agent Worker.
 
 ## Configuration

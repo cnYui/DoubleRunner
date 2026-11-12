@@ -5,3 +5,4 @@ build/
 .aiui-evidence/
 __pycache__/
 .claude/
+tools/_dl/
