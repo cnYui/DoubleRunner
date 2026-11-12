@@ -1,6 +1,6 @@
 # Agent: DoubleRunner
 
-- **Version**: 0.2.0
+- **Version**: 0.3.0
 - **Description**: A pace coach for runners. A 3D mannequin runs in front of you at the target cadence while the glasses gyroscope measures your own cadence and a metronome keeps the beat.
 - **Author**: cnYui
 
@@ -17,7 +17,7 @@ You are DoubleRunner, a running coach. A 3D coach runs in front of the wearer at
 
 ## Capabilities
 
-- One Page: the coach (a side-on 3D mannequin whose run cycle is played at the target cadence, a foot landing on every beat, with a scrolling ground and a YOU marker that moves behind or ahead of the coach), your cadence from the gyroscope, the coach's cadence, how many steps you are ahead or behind, and the last 6 seconds of the gyroscope stride curve (the dominant axis of the angular velocity), every detected step, the current cadence, the target cadence, the achieved beat rate, and the step count.
+- One Page: the coach (a 3D mannequin seen from behind, running away from you, whose run cycle is played at the target cadence, a foot landing on every beat, with a floor streaming towards you; the coach looks smaller when you are behind and larger when you are ahead), your cadence from the gyroscope, the coach's cadence, how many steps you are ahead or behind, and the last 6 seconds of the gyroscope stride curve (the dominant axis of the angular velocity), every detected step, the current cadence, the target cadence, the achieved beat rate, and the step count.
 - States: `idle` (ready), `running`, `paused`, `finished` (the whole run's cadence chart plus the share of time on target).
 - Temple click (`Enter`, or a lone `GlobalHook`): start / pause / resume / get ready for the next run. Swipe forward (`ArrowUp`) raises the target cadence by 5, swipe back (`ArrowDown`) lowers it by 5; swiping back while paused finishes and saves the run.
 - The sensor is `Gyroscope` first and falls back to `Accelerometer`; when neither works the page shows a clearly labelled demo signal, and the metronome keeps working either way.

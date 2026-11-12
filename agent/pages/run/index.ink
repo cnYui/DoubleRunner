@@ -29,7 +29,7 @@ import wx from 'wx';
 import { createCadenceDetector } from '../../lib/cadence.js';
 import { createStrideSignal } from '../../lib/demo.js';
 import { createMetronome } from '../../lib/metronome.js';
-import { createSampleBuffer, drawLiveCurve, drawRecordChart } from '../../lib/curve.js';
+import { createSampleBuffer, drawRecordChart } from '../../lib/curve.js';
 import {
   createSession,
   noteSecond,
@@ -43,7 +43,7 @@ import {
 import { createTempleInput } from '../../lib/temple.js';
 import { createCoach, drawCoachScene, describeGap } from '../../lib/coach.js';
 
-const BUILD = '2026-11-12.1';
+const BUILD = '2026-11-12.2';
 const DEFAULT_TARGET = 180;
 const MIN_TARGET = 120;
 const MAX_TARGET = 220;
@@ -53,9 +53,9 @@ const WINDOW_MS = 6000;
 const CANVAS_WIDTH = 446;
 const CANVAS_HEIGHT = 150;
 const CURVE_HEIGHT = 66;
-const COACH_CANVAS_WIDTH = 198;
-const COACH_CANVAS_HEIGHT = 176;
-const COACH_SCALE = 0.86;
+const COACH_CANVAS_WIDTH = 270;
+const COACH_CANVAS_HEIGHT = 318;
+const COACH_SCALE = 1.4;
 const FRAME_MS = 50;
 const UI_MS = 200;
 const DEMO_SAMPLE_MS = Math.round(1000 / SENSOR_FREQUENCY);
@@ -74,10 +74,10 @@ const STATE_LABELS = {
 };
 
 const HINTS = {
-  idle: 'Click: start run  ·  Swipe: target cadence +/-5',
-  running: 'Click: pause  ·  Swipe: target cadence +/-5',
-  paused: 'Click: resume  ·  Swipe back: finish and save',
-  finished: 'Click: get ready for the next run'
+  idle: 'Click: start\nSwipe: pace +/-5',
+  running: 'Click: pause\nSwipe: pace +/-5',
+  paused: 'Click: resume\nSwipe back: finish',
+  finished: 'Click: next run'
 };
 
 const SOURCE_LABELS = {
@@ -854,22 +854,6 @@ export default {
           running: this._phase === 'running'
         });
       }
-      const curve = this._ctx('curve');
-      if (curve) {
-        drawLiveCurve(curve, {
-          width: CANVAS_WIDTH,
-          height: CURVE_HEIGHT,
-          now,
-          spanMs: WINDOW_MS,
-          samples: this._buffer.samples,
-          amplitude: this._scale,
-          threshold: this._latest ? this._latest.threshold : 0,
-          beatAt: this._lastBeatAt,
-          running: this._phase === 'running',
-          label: SOURCE_LABELS[this._source] + ' ' + SENSOR_FREQUENCY + 'Hz · ' + (this._latest ? this._latest.unit : ''),
-          sublabel: (WINDOW_MS / 1000) + 's'
-        });
-      }
     } catch (error) {
       if (!this._frameErrorLogged) {
         this._frameErrorLogged = true;
@@ -1014,196 +998,142 @@ export default {
 </script>
 
 <page class="shell shell-{{state}}">
-  <view class="top">
-    <text class="brand">DOUBLERUNNER · COACH</text>
-    <view class="top-right">
-      <text class="chip chip-{{state}}">{{stateLabel}}</text>
-      <text class="clock">{{clock}}</text>
-    </view>
-  </view>
-
-  <view class="stage" ink:if="{{!done}}">
-    <view class="coach-frame">
-      <canvas id="coach" canvas-id="coach" width="198" height="176" class="coach"></canvas>
-    </view>
-    <view class="stats">
-      <view class="stat">
-        <text class="tag">YOU · GYRO</text>
-        <text class="value-lg">{{cadenceText}}</text>
-        <text class="unit">spm · {{targetLabel}}</text>
+  <view class="frame">
+    <view class="live" ink:if="{{!done}}">
+      <view class="left">
+        <view class="line">
+          <text class="tag">YOU</text>
+          <text class="num">{{cadenceText}}</text>
+          <text class="unit">spm</text>
+        </view>
+        <view class="line">
+          <text class="tag">COACH</text>
+          <text class="num num-coach">{{coachCadenceText}}</text>
+          <text class="unit">spm</text>
+        </view>
+        <text class="hint" ink:if="{{state !== 'running'}}">{{hint}}</text>
       </view>
-      <view class="stat stat-coach">
-        <text class="tag">COACH</text>
-        <text class="value-md">{{coachCadenceText}}</text>
-        <text class="unit">spm · swipe +/-5</text>
+      <view class="right">
+        <canvas id="coach" canvas-id="coach" width="270" height="318" class="coach"></canvas>
       </view>
-      <text class="gap">{{gapText}}</text>
-      <text class="unit">{{beatRateText}} {{beatLabel}} · {{stepsText}} {{stepsLabel}}</text>
-      <text class="notice" ink:if="{{notice}}">{{notice}}</text>
     </view>
-  </view>
-  <view class="curve-frame" ink:if="{{!done}}">
-    <canvas id="curve" canvas-id="curve" width="446" height="66" class="curve"></canvas>
-  </view>
 
-  <view class="chart-frame" ink:if="{{done}}">
-    <canvas id="chart" canvas-id="chart" width="446" height="150" class="chart"></canvas>
+    <view class="summary" ink:if="{{done}}">
+      <canvas id="chart" canvas-id="chart" width="446" height="150" class="chart"></canvas>
+      <view class="metrics">
+        <view class="metric metric-main">
+          <text class="num">{{cadenceText}}</text>
+          <text class="unit">{{mainLabel}}</text>
+        </view>
+        <view class="metric">
+          <text class="value">{{targetText}}</text>
+          <text class="unit">{{targetLabel}}</text>
+        </view>
+        <view class="metric">
+          <text class="value">{{stepsText}}</text>
+          <text class="unit">{{stepsLabel}}</text>
+        </view>
+      </view>
+      <text class="record-line" ink:if="{{lastRecordText}}">{{lastRecordText}}</text>
+      <text class="hint">{{hint}}</text>
+    </view>
   </view>
-  <view class="metrics" ink:if="{{done}}">
-    <view class="metric metric-main">
-      <text class="value-lg">{{cadenceText}}</text>
-      <text class="unit">{{mainLabel}}</text>
-    </view>
-    <view class="metric">
-      <text class="value">{{targetText}}</text>
-      <text class="unit">{{targetLabel}}</text>
-    </view>
-    <view class="metric metric-beat">
-      <text class="value">{{beatRateText}}</text>
-      <text class="unit">{{beatLabel}}</text>
-    </view>
-    <view class="metric metric-steps">
-      <text class="value">{{stepsText}}</text>
-      <text class="unit">{{stepsLabel}}</text>
-    </view>
-  </view>
-  <text class="record-line" ink:if="{{lastRecordText}}">{{lastRecordText}}</text>
-  <text class="hint">{{hint}}</text>
 </page>
 
 <style>
 .shell {
   display: flex;
-  flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: 12px 16px;
+  padding: 8px;
   box-sizing: border-box;
   color: rgba(64, 255, 94, 0.72);
   background-color: #000000;
 }
 
-.top {
+.frame {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  height: 20px;
-}
-
-.top-right {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
-
-.brand {
-  font-size: 11px;
-  line-height: 14px;
-  letter-spacing: 1px;
-  color: rgba(64, 255, 94, 0.48);
-}
-
-.chip {
-  padding: 2px 6px;
-  margin-right: 10px;
-  font-size: 11px;
-  line-height: 14px;
-  border: 1px solid rgba(64, 255, 94, 0.48);
-  border-radius: 4px;
-  color: rgba(64, 255, 94, 0.72);
-}
-
-.chip-running {
-  border: 1px solid rgba(64, 255, 94, 0.72);
-  color: #40ff5e;
-  background-color: rgba(64, 255, 94, 0.12);
-}
-
-.chip-paused {
-  border: 1px dashed rgba(64, 255, 94, 0.72);
-}
-
-.chip-finished {
-  border: 1px solid #40ff5e;
-  color: #40ff5e;
-}
-
-.clock {
-  font-family: monospace;
-  font-size: 13px;
-  line-height: 16px;
-  color: rgba(64, 255, 94, 0.72);
-}
-
-.stage {
-  display: flex;
-  flex-direction: row;
-  margin-top: 6px;
-  height: 178px;
-}
-
-.coach-frame {
-  width: 200px;
-  height: 178px;
-  border: 1px solid rgba(64, 255, 94, 0.24);
-  border-radius: 2px;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.coach {
-  width: 198px;
-  height: 176px;
-}
-
-.stats {
-  display: flex;
-  flex-direction: column;
   flex: 1;
-  margin-left: 12px;
+  width: 100%;
+  height: 100%;
+  padding: 16px 18px;
+  box-sizing: border-box;
+  border: 2px solid rgba(64, 255, 94, 0.72);
+  border-radius: 22px;
   overflow: hidden;
 }
 
-.stat {
+.live {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
 }
 
-.stat-coach {
-  margin-top: 6px;
+.left {
+  display: flex;
+  flex-direction: column;
+  width: 176px;
+}
+
+.line {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  margin-bottom: 14px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid rgba(64, 255, 94, 0.72);
 }
 
 .tag {
-  font-size: 10px;
-  line-height: 12px;
+  width: 52px;
+  font-size: 12px;
+  line-height: 16px;
   letter-spacing: 1px;
   color: rgba(64, 255, 94, 0.48);
 }
 
-.curve-frame {
-  width: 448px;
-  height: 68px;
+.num {
+  font-family: monospace;
+  font-size: 40px;
+  line-height: 42px;
+  color: #40ff5e;
+}
+
+.num-coach {
+  color: rgba(64, 255, 94, 0.72);
+}
+
+.unit {
+  margin-left: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: rgba(64, 255, 94, 0.48);
+}
+
+.right {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.coach {
+  width: 270px;
+  height: 318px;
+}
+
+.hint {
   margin-top: 6px;
-  border: 1px solid rgba(64, 255, 94, 0.24);
-  border-radius: 2px;
-  box-sizing: border-box;
-  overflow: hidden;
+  font-size: 11px;
+  line-height: 15px;
+  color: rgba(64, 255, 94, 0.48);
 }
 
-.curve {
-  width: 446px;
-  height: 66px;
-}
-
-.chart-frame {
-  width: 448px;
-  height: 152px;
-  margin-top: 8px;
-  border: 1px solid rgba(64, 255, 94, 0.24);
-  border-radius: 2px;
-  box-sizing: border-box;
-  overflow: hidden;
+.summary {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .chart {
@@ -1215,7 +1145,7 @@ export default {
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .metric {
@@ -1228,20 +1158,6 @@ export default {
   flex: 1.3;
 }
 
-.value-lg {
-  font-family: monospace;
-  font-size: 44px;
-  line-height: 46px;
-  color: #40ff5e;
-}
-
-.value-md {
-  font-family: monospace;
-  font-size: 30px;
-  line-height: 32px;
-  color: rgba(64, 255, 94, 0.72);
-}
-
 .value {
   font-family: monospace;
   font-size: 22px;
@@ -1249,101 +1165,37 @@ export default {
   color: rgba(64, 255, 94, 0.72);
 }
 
-.unit {
-  margin-top: 2px;
-  font-size: 10px;
-  line-height: 13px;
-  letter-spacing: 1px;
-  color: rgba(64, 255, 94, 0.48);
-}
-
-.gap {
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 16px;
-  color: #40ff5e;
-}
-
-.notice,
 .record-line {
   margin-top: 4px;
-  padding-left: 6px;
-  font-size: 11px;
-  line-height: 14px;
-  border-left: 1px solid rgba(64, 255, 94, 0.48);
-  color: rgba(64, 255, 94, 0.72);
-}
-
-.record-line {
-  color: rgba(64, 255, 94, 0.48);
-}
-
-.hint {
-  margin-top: auto;
   font-size: 11px;
   line-height: 14px;
   color: rgba(64, 255, 94, 0.48);
 }
 
-@media (target: _current) {
-  .shell {
-    padding: 10px 14px;
-  }
-}
-
-@media (target: _blank) {
-  .shell {
-    padding: 12px 16px;
-  }
-}
-
-/* Inline card in the conversation flow (about 448 x 150): keep the state,
-   the two cadences, and the hint; drop the coach picture and the curve. */
+/* Inline card in the conversation flow (about 448 x 150): only the two
+   cadence lines fit; the coach picture stays in the full screen. */
 @media (max-height: 240px) {
   .shell {
-    padding: 6px 12px;
+    padding: 4px;
   }
-  .brand,
-  .coach-frame,
-  .curve-frame,
-  .chart-frame,
-  .metric-beat,
-  .metric-steps,
-  .notice,
+  .frame {
+    padding: 8px 12px;
+    border-radius: 14px;
+  }
+  .right,
+  .chart,
   .record-line {
     display: none;
   }
-  .stage {
-    height: auto;
-    margin-top: 4px;
+  .left {
+    width: 100%;
   }
-  .stats {
-    margin-left: 0;
-    flex-direction: row;
-    align-items: flex-end;
+  .line {
+    margin-bottom: 6px;
   }
-  .stat-coach {
-    margin-top: 0;
-    margin-left: 16px;
-  }
-  .gap {
-    margin-top: 0;
-    margin-left: 16px;
-  }
-  .metrics {
-    margin-top: 4px;
-  }
-  .value-lg {
-    font-size: 34px;
-    line-height: 36px;
-  }
-  .value-md {
-    font-size: 24px;
-    line-height: 28px;
-  }
-  .value {
-    font-size: 18px;
-    line-height: 22px;
+  .num {
+    font-size: 30px;
+    line-height: 32px;
   }
 }
 </style>

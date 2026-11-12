@@ -1,6 +1,6 @@
 {
   "name": "doublerunner",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "DoubleRunner: a Rokid Glasses AIUI agent that charts the head-mounted gyroscope while you run, detects your cadence, and keeps a metronome at the target cadence.",
   "type": "module",

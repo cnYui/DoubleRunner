@@ -1,7 +1,7 @@
 """Render the coach run cycle from the CC0 Quaternius Universal Animation Library.
 
 Run with Blender (headless):
-  blender -b -P tools/render_coach.py -- <glb> <out_dir> [frames=24]
+  blender -b -P tools/render_coach.py -- <glb> <out_dir> [frames=24] [side|back]
 
 Renders `Jog_Fwd_Loop` of the mannequin from the side with Workbench, one
 greyscale+alpha PNG per phase sample, into <out_dir>/f00.png ...
@@ -16,6 +16,7 @@ from mathutils import Vector
 argv = sys.argv[sys.argv.index('--') + 1:]
 glb, out_dir = argv[0], argv[1]
 count = int(argv[2]) if len(argv) > 2 else 24
+view = argv[3] if len(argv) > 3 else 'side'   # 'side' or 'back' (camera behind the runner)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=glb)
@@ -63,8 +64,14 @@ scene.camera = cam
 # Blender, so on screen it is running to the left or right depending on the
 # side. SIDE is chosen so that the runner faces screen-right.
 side = -1.0
-cam.location = (side * 6.0, 0.0, 0.95)
-cam.rotation_euler = (math.radians(90), 0, math.radians(-90 if side < 0 else 90))
+if view == 'back':
+    # The imported mannequin faces -Y, so the camera behind it sits on +Y
+    # and looks along -Y: we see its back as it runs away from us.
+    cam.location = (0.0, 6.0, 0.95)
+    cam.rotation_euler = (math.radians(90), 0, math.radians(180))
+else:
+    cam.location = (side * 6.0, 0.0, 0.95)
+    cam.rotation_euler = (math.radians(90), 0, math.radians(-90 if side < 0 else 90))
 
 light = bpy.data.lights.new('l', 'SUN')
 lobj = bpy.data.objects.new('l', light)
