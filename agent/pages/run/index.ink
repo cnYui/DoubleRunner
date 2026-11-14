@@ -1,7 +1,7 @@
 <script def>
 {
   "navigationBarTitleText": "DoubleRunner",
-  "description": "Running companion: charts the glasses gyroscope stride curve, detects the current cadence, and plays a metronome at the target cadence. Invoke when the user says things like 'start a run', 'run with me', 'cadence 180', or 'change the cadence to 170'; pass the target cadence as the integer targetCadence.",
+  "description": "Running coach: a 3D pace coach runs in front of you at the target cadence while the glasses gyroscope measures your own cadence and a metronome keeps the beat. Invoke when the user says things like 'start a run', 'run with me', 'cadence 180', or 'change the cadence to 170'; pass the target cadence as the integer targetCadence.",
   "schema": {
     "data": {
       "type": "object",
@@ -29,7 +29,7 @@ import wx from 'wx';
 import { createCadenceDetector } from '../../lib/cadence.js';
 import { createStrideSignal } from '../../lib/demo.js';
 import { createMetronome } from '../../lib/metronome.js';
-import { createSampleBuffer, drawLiveCurve, drawRecordChart } from '../../lib/curve.js';
+import { createSampleBuffer, drawRecordChart } from '../../lib/curve.js';
 import {
   createSession,
   noteSecond,
@@ -41,8 +41,9 @@ import {
   normalizeOffsetMinutes
 } from '../../lib/records.js';
 import { createTempleInput } from '../../lib/temple.js';
+import { createCoach, drawCoachScene, describeGap } from '../../lib/coach.js';
 
-const BUILD = '2026-09-11.1';
+const BUILD = '2026-11-12.2';
 const DEFAULT_TARGET = 180;
 const MIN_TARGET = 120;
 const MAX_TARGET = 220;
@@ -51,6 +52,10 @@ const SENSOR_FREQUENCY = 60;
 const WINDOW_MS = 6000;
 const CANVAS_WIDTH = 446;
 const CANVAS_HEIGHT = 150;
+const CURVE_HEIGHT = 66;
+const COACH_CANVAS_WIDTH = 270;
+const COACH_CANVAS_HEIGHT = 318;
+const COACH_SCALE = 1.4;
 const FRAME_MS = 50;
 const UI_MS = 200;
 const DEMO_SAMPLE_MS = Math.round(1000 / SENSOR_FREQUENCY);
@@ -69,10 +74,10 @@ const STATE_LABELS = {
 };
 
 const HINTS = {
-  idle: 'Click: start run  ·  Swipe: target cadence +/-5',
-  running: 'Click: pause  ·  Swipe: target cadence +/-5',
-  paused: 'Click: resume  ·  Swipe back: finish and save',
-  finished: 'Click: get ready for the next run'
+  idle: 'Click: start\nSwipe: pace +/-5',
+  running: 'Click: pause\nSwipe: pace +/-5',
+  paused: 'Click: resume\nSwipe back: finish',
+  finished: 'Click: next run'
 };
 
 const SOURCE_LABELS = {
@@ -129,6 +134,9 @@ export default {
     stepsText: '0',
     stepsLabel: 'steps',
     hint: HINTS.idle,
+    done: false,
+    coachCadenceText: String(DEFAULT_TARGET),
+    gapText: 'coach ready',
     notice: '',
     lastRecordText: ''
   },
@@ -147,7 +155,7 @@ export default {
     this._sensorRunning = false;
     this._failedKinds = {};
     this._readings = 0;
-    this._detector = createCadenceDetector({ source: 'gyroscope' });
+    this._detector = this._makeDetector('gyroscope');
     this._buffer = createSampleBuffer(WINDOW_MS);
     this._scale = 0.6;
     this._latest = null;
@@ -167,8 +175,11 @@ export default {
     this._demoTimer = null;
     this._demoSignal = null;
     this._demoLastT = null;
-    this._ctxCache = null;
+    this._ctxCache = {};
     this._ctxVia = '';
+    this._ctxHoldUntil = 0;
+    this._wasDone = false;
+    this._coach = createCoach({ cadence: this._target });
     this._uiSnapshot = '';
     this._notice = '';
     this._demoTicks = 0;
@@ -193,6 +204,7 @@ export default {
     this.setData({
       targetCadence: this._target,
       targetText: String(this._target),
+      coachCadenceText: String(this._target),
       lastRecordText: records.length ? 'Last ' + formatRecordLine(records[0], this._offsetMinutes()) : ''
     });
     this._createSensor();
@@ -301,8 +313,10 @@ export default {
     this._target = next;
     if (this._session) this._session.targetCadence = next;
     if (this._metronome.running) this._metronome.setBpm(next);
+    this._coach.setCadence(next);
+    this._detector.setExpected(next);
     log('target -> ' + next);
-    this.setData({ targetCadence: next, targetText: String(next) });
+    this.setData({ targetCadence: next, targetText: String(next), coachCadenceText: String(next) });
     this._refreshUi(true);
     return true;
   },
@@ -322,6 +336,7 @@ export default {
       source: this._source === 'none' ? 'none' : this._source
     });
     this._startSource();
+    this._coach.resetSteps();
     this._metronome.start(this._target, now);
     this._resumeAudio();
     log('run start target=' + this._target + ' source=' + this._source);
@@ -400,9 +415,18 @@ export default {
     const phase = this._phase;
     const patch = {
       state: phase,
+      done: phase === 'finished',
       stateLabel: STATE_LABELS[phase] + (this._source === 'demo' ? ' · DEMO' : ''),
       hint: HINTS[phase]
     };
+    // The canvases are rebuilt when the layout switches between the live
+    // stage and the summary, so drop the cached contexts and give the host a
+    // moment to create the new elements.
+    if ((phase === 'finished') !== this._wasDone) {
+      this._wasDone = phase === 'finished';
+      this._ctxCache = {};
+      this._ctxHoldUntil = this._now() + 120;
+    }
     if (phase === 'finished' && this._record) {
       const record = this._record;
       patch.cadenceText = record.avgCadence ? String(record.avgCadence) : '--';
@@ -442,7 +466,7 @@ export default {
         this._sensor = sensor;
         this._sensorKind = kind;
         this._source = kind;
-        this._detector = createCadenceDetector({ source: kind });
+        this._detector = this._makeDetector(kind);
         this._buffer.clear();
         this._scale = 0.6;
         return true;
@@ -559,7 +583,7 @@ export default {
   _startDemo(reason) {
     this._stopDemo();
     this._source = 'demo';
-    this._detector = createCadenceDetector({ source: 'demo' });
+    this._detector = this._makeDetector('demo');
     this._buffer.clear();
     this._scale = 0.6;
     this._demoSignal = createStrideSignal({
@@ -642,6 +666,7 @@ export default {
 
   _onBeat(beat) {
     this._lastBeatAt = beat.at;
+    if (this._phase === 'running') this._coach.syncToBeat();
     this._playTick(beat.accent);
     if (beat.index === 1 || (beat.index > 0 && beat.index % 30 === 0)) {
       const stats = this._metronome.stats();
@@ -794,16 +819,19 @@ export default {
     this._metronome.poll();
     if (this._demoSignal) this._demoTick();
     const now = this._now();
+    // The coach keeps its own phase; a foot landing is a visual beat too.
+    this._coach.advance(now, this._phase === 'running');
     if (now - this._lastDrawAt < FRAME_MS - 5) return;
+    if (now < this._ctxHoldUntil) return;
     this._lastDrawAt = now;
     this._frames += 1;
-    const ctx = this._ctx();
-    if (!ctx) return;
     try {
       if (this._phase === 'finished' && this._record) {
         if (this._recordDrawn) return;
+        const chart = this._ctx('chart');
+        if (!chart) return;
         this._recordDrawn = true;
-        drawRecordChart(ctx, {
+        drawRecordChart(chart, {
           width: CANVAS_WIDTH,
           height: CANVAS_HEIGHT,
           series: this._record.series,
@@ -813,19 +841,20 @@ export default {
         });
         return;
       }
-      drawLiveCurve(ctx, {
-        width: CANVAS_WIDTH,
-        height: CANVAS_HEIGHT,
-        now,
-        spanMs: WINDOW_MS,
-        samples: this._buffer.samples,
-        amplitude: this._scale,
-        threshold: this._latest ? this._latest.threshold : 0,
-        beatAt: this._lastBeatAt,
-        running: this._phase === 'running',
-        label: SOURCE_LABELS[this._source] + ' ' + SENSOR_FREQUENCY + 'Hz · ' + (this._latest ? this._latest.unit : ''),
-        sublabel: (WINDOW_MS / 1000) + 's'
-      });
+      const coach = this._ctx('coach');
+      if (coach) {
+        drawCoachScene(coach, {
+          width: COACH_CANVAS_WIDTH,
+          height: COACH_CANVAS_HEIGHT,
+          scale: COACH_SCALE,
+          frame: this._coach.frame(),
+          now,
+          scroll: this._coach.scroll,
+          lastStrikeAt: this._coach.lastStrikeAt,
+          gapSteps: this._gapSteps(),
+          running: this._phase === 'running'
+        });
+      }
     } catch (error) {
       if (!this._frameErrorLogged) {
         this._frameErrorLogged = true;
@@ -834,12 +863,18 @@ export default {
     }
   },
 
-  _ctx() {
-    if (this._ctxCache) return this._ctxCache;
+  // Steps you are ahead (+) or behind (-) of the coach since the run began.
+  _gapSteps() {
+    if (this._phase !== 'running') return 0;
+    return this._runSteps - this._coach.steps;
+  },
+
+  _ctx(id) {
+    if (this._ctxCache[id]) return this._ctxCache[id];
     let ctx = null;
     let via = '';
     try {
-      const element = typeof this.querySelector === 'function' ? this.querySelector('#curve') : null;
+      const element = typeof this.querySelector === 'function' ? this.querySelector('#' + id) : null;
       if (element && typeof element.getContext === 'function') {
         ctx = element.getContext('2d');
         via = 'querySelector';
@@ -849,7 +884,7 @@ export default {
     }
     if (!ctx) {
       try {
-        const component = typeof this.selectComponent === 'function' ? this.selectComponent('#curve') : null;
+        const component = typeof this.selectComponent === 'function' ? this.selectComponent('#' + id) : null;
         if (component && typeof component.getContext === 'function') {
           ctx = component.getContext('2d');
           via = 'selectComponent';
@@ -861,7 +896,7 @@ export default {
     if (!ctx) {
       try {
         if (wx && typeof wx.createCanvasContext === 'function') {
-          ctx = wx.createCanvasContext('curve', this);
+          ctx = wx.createCanvasContext(id, this);
           via = 'wx.createCanvasContext';
         }
       } catch (_error) {
@@ -869,12 +904,12 @@ export default {
       }
     }
     if (ctx) {
-      this._ctxCache = ctx;
+      this._ctxCache[id] = ctx;
       this._ctxVia = via;
-      log('canvas context via ' + via);
+      log('canvas context ' + id + ' via ' + via);
     } else if (!this._ctxMissingLogged) {
       this._ctxMissingLogged = true;
-      log('canvas context unavailable');
+      log('canvas context unavailable: ' + id);
     }
     return ctx;
   },
@@ -904,7 +939,8 @@ export default {
       cadenceText: cadence ? String(cadence) : '--',
       targetLabel: 'target · ' + describeDelta(cadence, this._target),
       beatRateText: this._metronome.running && stats.achievedRate ? stats.achievedRate.toFixed(1) : '--',
-      stepsText: String(this._runSteps)
+      stepsText: String(this._runSteps),
+      gapText: describeGap(this._gapSteps(), this._phase === 'running')
     };
     const snapshot = JSON.stringify(patch);
     if (!force && snapshot === this._uiSnapshot) return;
@@ -927,9 +963,20 @@ export default {
       (last ? Math.round(this._now() - last.t) : -1) + 'ms demoTicks=' + this._demoTicks +
       ' readings=' + this._readings + ' frames=' + this._frames + ' ui=' + this._uiTicks +
       ' beats=' + stats.beats + ' rate=' + stats.achievedRate.toFixed(2) + ' maxLate=' +
-      Math.round(stats.maxLateMs) + 'ms cadence=' + (this._latest ? this._latest.cadence : 0) +
+      Math.round(stats.maxLateMs) + 'ms cadence=' + (this._latest ? this._latest.cadence : 0) + ' lock=' +
+      (this._latest && this._latest.locked ? 'y' : 'n') + ' mode=' +
+      (this._latest ? this._latest.axis + '/' + this._latest.mode : '-') + ' share=' +
+      (this._latest ? this._latest.share.toFixed(2) : '0') +
       ' scale=' + this._scale.toFixed(3) + ' ctx=' + this._ctxVia
     );
+  },
+
+  // The target cadence only helps the detector pick the right octave while it
+  // has not locked onto the runner yet; it never pulls the measured cadence.
+  _makeDetector(source) {
+    const detector = createCadenceDetector({ source });
+    detector.setExpected(this._target);
+    return detector;
   },
 
   _now() {
@@ -962,116 +1009,146 @@ export default {
 };
 </script>
 
-<page class="shell">
-  <view class="top">
-    <text class="brand">DOUBLERUNNER · CADENCE</text>
-    <view class="top-right">
-      <text class="chip chip-{{state}}">{{stateLabel}}</text>
-      <text class="clock">{{clock}}</text>
+<page class="shell shell-{{state}}">
+  <view class="frame">
+    <view class="live" ink:if="{{!done}}">
+      <view class="left">
+        <view class="line">
+          <text class="tag">YOU</text>
+          <text class="num">{{cadenceText}}</text>
+          <text class="unit">spm</text>
+        </view>
+        <view class="line">
+          <text class="tag">COACH</text>
+          <text class="num num-coach">{{coachCadenceText}}</text>
+          <text class="unit">spm</text>
+        </view>
+        <text class="hint" ink:if="{{state !== 'running'}}">{{hint}}</text>
+      </view>
+      <view class="right">
+        <canvas id="coach" canvas-id="coach" width="270" height="318" class="coach"></canvas>
+      </view>
+    </view>
+
+    <view class="summary" ink:if="{{done}}">
+      <canvas id="chart" canvas-id="chart" width="446" height="150" class="chart"></canvas>
+      <view class="metrics">
+        <view class="metric metric-main">
+          <text class="num">{{cadenceText}}</text>
+          <text class="unit">{{mainLabel}}</text>
+        </view>
+        <view class="metric">
+          <text class="value">{{targetText}}</text>
+          <text class="unit">{{targetLabel}}</text>
+        </view>
+        <view class="metric">
+          <text class="value">{{stepsText}}</text>
+          <text class="unit">{{stepsLabel}}</text>
+        </view>
+      </view>
+      <text class="record-line" ink:if="{{lastRecordText}}">{{lastRecordText}}</text>
+      <text class="hint">{{hint}}</text>
     </view>
   </view>
-  <view class="curve-frame">
-    <canvas id="curve" canvas-id="curve" width="446" height="150" class="curve"></canvas>
-  </view>
-  <view class="metrics">
-    <view class="metric metric-main">
-      <text class="value-lg">{{cadenceText}}</text>
-      <text class="unit">{{mainLabel}}</text>
-    </view>
-    <view class="metric">
-      <text class="value">{{targetText}}</text>
-      <text class="unit">{{targetLabel}}</text>
-    </view>
-    <view class="metric metric-beat">
-      <text class="value">{{beatRateText}}</text>
-      <text class="unit">{{beatLabel}}</text>
-    </view>
-    <view class="metric metric-steps">
-      <text class="value">{{stepsText}}</text>
-      <text class="unit">{{stepsLabel}}</text>
-    </view>
-  </view>
-  <text class="notice" ink:if="{{notice}}">{{notice}}</text>
-  <text class="record-line" ink:if="{{lastRecordText}}">{{lastRecordText}}</text>
-  <text class="hint">{{hint}}</text>
 </page>
 
 <style>
 .shell {
   display: flex;
-  flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: 12px 16px;
+  padding: 8px;
   box-sizing: border-box;
   color: rgba(64, 255, 94, 0.72);
   background-color: #000000;
 }
 
-.top {
+.frame {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  height: 20px;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  padding: 16px 18px;
+  box-sizing: border-box;
+  border: 2px solid rgba(64, 255, 94, 0.72);
+  border-radius: 22px;
+  overflow: hidden;
 }
 
-.top-right {
+.live {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  width: 100%;
+  height: 100%;
 }
 
-.brand {
-  font-size: 11px;
-  line-height: 14px;
+.left {
+  display: flex;
+  flex-direction: column;
+  width: 176px;
+}
+
+.line {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  margin-bottom: 14px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid rgba(64, 255, 94, 0.72);
+}
+
+.tag {
+  width: 52px;
+  font-size: 12px;
+  line-height: 16px;
   letter-spacing: 1px;
   color: rgba(64, 255, 94, 0.48);
 }
 
-.chip {
-  padding: 2px 6px;
-  margin-right: 10px;
-  font-size: 11px;
-  line-height: 14px;
-  border: 1px solid rgba(64, 255, 94, 0.48);
-  border-radius: 4px;
-  color: rgba(64, 255, 94, 0.72);
-}
-
-.chip-running {
-  border: 1px solid rgba(64, 255, 94, 0.72);
-  color: #40ff5e;
-  background-color: rgba(64, 255, 94, 0.12);
-}
-
-.chip-paused {
-  border: 1px dashed rgba(64, 255, 94, 0.72);
-}
-
-.chip-finished {
-  border: 1px solid #40ff5e;
-  color: #40ff5e;
-}
-
-.clock {
+.num {
   font-family: monospace;
-  font-size: 13px;
-  line-height: 16px;
+  font-size: 40px;
+  line-height: 42px;
+  color: #40ff5e;
+}
+
+.num-coach {
   color: rgba(64, 255, 94, 0.72);
 }
 
-.curve-frame {
-  width: 448px;
-  height: 152px;
-  margin-top: 8px;
-  border: 1px solid rgba(64, 255, 94, 0.24);
-  border-radius: 2px;
-  box-sizing: border-box;
-  overflow: hidden;
+.unit {
+  margin-left: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: rgba(64, 255, 94, 0.48);
 }
 
-.curve {
+.right {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.coach {
+  width: 270px;
+  height: 318px;
+}
+
+.hint {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 15px;
+  color: rgba(64, 255, 94, 0.48);
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.chart {
   width: 446px;
   height: 150px;
 }
@@ -1080,7 +1157,7 @@ export default {
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .metric {
@@ -1093,13 +1170,6 @@ export default {
   flex: 1.3;
 }
 
-.value-lg {
-  font-family: monospace;
-  font-size: 44px;
-  line-height: 46px;
-  color: #40ff5e;
-}
-
 .value {
   font-family: monospace;
   font-size: 22px;
@@ -1107,71 +1177,37 @@ export default {
   color: rgba(64, 255, 94, 0.72);
 }
 
-.unit {
-  margin-top: 2px;
-  font-size: 10px;
-  line-height: 13px;
-  letter-spacing: 1px;
-  color: rgba(64, 255, 94, 0.48);
-}
-
-.notice,
 .record-line {
-  margin-top: 6px;
-  padding-left: 6px;
-  font-size: 11px;
-  line-height: 14px;
-  border-left: 1px solid rgba(64, 255, 94, 0.48);
-  color: rgba(64, 255, 94, 0.72);
-}
-
-.record-line {
-  color: rgba(64, 255, 94, 0.48);
-}
-
-.hint {
-  margin-top: auto;
+  margin-top: 4px;
   font-size: 11px;
   line-height: 14px;
   color: rgba(64, 255, 94, 0.48);
 }
 
-@media (target: _current) {
-  .shell {
-    padding: 10px 14px;
-  }
-}
-
-@media (target: _blank) {
-  .shell {
-    padding: 12px 16px;
-  }
-}
-
-/* Inline card in the conversation flow (about 448 x 150): keep the state,
-   the cadence, the target, and the hint; drop the curve and the extras. */
+/* Inline card in the conversation flow (about 448 x 150): only the two
+   cadence lines fit; the coach picture stays in the full screen. */
 @media (max-height: 240px) {
   .shell {
-    padding: 6px 12px;
+    padding: 4px;
   }
-  .brand,
-  .curve-frame,
-  .metric-beat,
-  .metric-steps,
-  .notice,
+  .frame {
+    padding: 8px 12px;
+    border-radius: 14px;
+  }
+  .right,
+  .chart,
   .record-line {
     display: none;
   }
-  .metrics {
-    margin-top: 4px;
+  .left {
+    width: 100%;
   }
-  .value-lg {
-    font-size: 34px;
-    line-height: 36px;
+  .line {
+    margin-bottom: 6px;
   }
-  .value {
-    font-size: 18px;
-    line-height: 22px;
+  .num {
+    font-size: 30px;
+    line-height: 32px;
   }
 }
 </style>

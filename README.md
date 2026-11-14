@@ -1,5 +1,7 @@
 # DoubleRunner
 
+**Coach version (0.2.0):** a 3D pace coach now runs in front of you. The coach is the side-on mannequin of the CC0 Quaternius Universal Animation Library (`Jog_Fwd_Loop`), rendered once in Blender and baked into 24 phases of three-level green polygons (`agent/lib/coach-frames.js`, 70 KB, no video or bitmap shipped). Its run cycle is played at the target cadence (a cycle is two steps, so playback speed = cadence / 160.7), a foot lands exactly on every metronome beat, the ground streams past at the coach's pace, and a `YOU` marker sits behind or ahead of the coach by the difference between your detected steps and the coach's steps. Swipe to change the target and the coach changes tempo at once. The glasses show your cadence (gyroscope), the coach cadence, and the coach animation. Rebuild the frames with `blender -b -P tools/render_coach.py -- <UAL1_Standard.glb> <frames_dir>` then `python tools/build_coach.py <frames_dir> agent/lib/coach-frames.js`.
+
 A running-cadence companion for Rokid Glasses (AIUI 0.17.0, single-green display). While you run in the glasses, the page charts the last 6 seconds of head-mounted gyroscope motion, detects every step and your current cadence from that curve, and plays a metronome at the target cadence (default 180). Every run is saved as a record; when you finish, the page draws the cadence chart for the whole run plus the share of time spent on target.
 
 ## Canvas and proportions
@@ -38,15 +40,12 @@ The Back key is left to the host. Leaving the page while running pauses automati
 
 ## Cadence detection
 
-`lib/cadence.js`, pure functions, replayable in Node:
+`lib/cadence.js` and `lib/spectrum.js`, pure functions, replayable in Node. A runner's head moves at two rhythms: it nods or bounces on **every step** (step rate), and it swings **left and right once per two steps** (stride rate, half the step rate). Which one is stronger depends on the runner and on how the glasses sit, and deliberate head turns add large irregular motion. A single-axis peak counter (the first version) reports half the cadence whenever the left-right swing is the strongest signal, so the detector works in two stages:
 
-1. Remove the slow drift from each axis (first-order high-pass, tau = 0.8 s);
-2. Take the axis with the largest recent variance (30 % hysteresis, so the head-pitch axis usually wins), signed;
-3. Smooth with a first-order low-pass (tau = 40 ms);
-4. A local maximum above the adaptive threshold (`max(0.35 rad/s, 0.9 x RMS)`) is a step, but only once the signal has returned below the baseline since the previous step ("armed"), so the two lobes of one nod are not counted twice; steps must be 250 to 1500 ms apart;
-5. Cadence = 60000 / the median of the last 8 step intervals, then smoothed by 35 %; it returns to zero after 2.5 s without a step.
+1. **Comb spectrum on all three axes.** Every axis is band-passed (about 1 to 4 Hz) and resampled to 30 Hz. For each candidate cadence (100 to 230 spm) the estimator measures how much of the motion energy sits at its step tone and at its stride tone, **the stride tone (left-right swing) weighted double**. The sensor axes are never named, so any mounting works. The target cadence only picks between octaves until the detector has locked on; it never pulls the measurement.
+2. **Step counting in the time domain** on the axis and tone the spectrum says carry the gait: positive peaks of a step tone, or the lobes of **both polarities** of a stride tone (one lobe per step). Step intervals (trimmed mean, robust to uneven left / right steps) refine the spectral cadence while they agree within 10 %.
 
-When the gyroscope is unavailable the same detector runs on the accelerometer (threshold 1.2 m/s², gravity removed by the high-pass). `tests/cadence.test.js` verifies it against the synthetic signal from `lib/demo.js`: 180 / 172 / 110 spm within 3 spm, noise produces no steps, a 160 to 184 change is tracked within seconds, and stopping returns the reading to zero.
+A change of more than 12 % (walking into a run) re-locks within a few seconds; stopping clears the cadence after 2.5 s. Details, the before / after error table, the dataset search, and the limits are in [docs/cadence-detection.md](docs/cadence-detection.md). When the gyroscope is unavailable the same detector runs on the accelerometer. `tests/cadence.test.js` and `tests/head-cadence.test.js` verify it against the synthetic signals from `lib/demo.js`; `node tools/cadence_bench.mjs` prints the error table.
 
 ## Metronome and haptics
 
@@ -89,7 +88,8 @@ agent/                     AIUI Studio import root (AIUI 0.17.0)
   AGENTS.md                agent identity, voice routing rules, capability boundaries
   app.json                 pages: run
   pages/run/index.ink      the run page (curve, cadence, metronome, records)
-  lib/cadence.js           cadence detection (high-pass, axis pick, low-pass, adaptive-threshold peaks)
+  lib/cadence.js           cadence detection (band-pass, spectral lock, step / stride lobe counting)
+  lib/spectrum.js          comb-spectrum cadence estimator over three axes (stride tone weighted double)
   lib/metronome.js         drift-free beat scheduler
   lib/curve.js             canvas drawing for the live curve and the post-run chart
   lib/records.js           per-second aggregation, record summaries, localStorage (newest 20)
