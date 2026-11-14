@@ -155,7 +155,7 @@ export default {
     this._sensorRunning = false;
     this._failedKinds = {};
     this._readings = 0;
-    this._detector = createCadenceDetector({ source: 'gyroscope' });
+    this._detector = this._makeDetector('gyroscope');
     this._buffer = createSampleBuffer(WINDOW_MS);
     this._scale = 0.6;
     this._latest = null;
@@ -314,6 +314,7 @@ export default {
     if (this._session) this._session.targetCadence = next;
     if (this._metronome.running) this._metronome.setBpm(next);
     this._coach.setCadence(next);
+    this._detector.setExpected(next);
     log('target -> ' + next);
     this.setData({ targetCadence: next, targetText: String(next), coachCadenceText: String(next) });
     this._refreshUi(true);
@@ -465,7 +466,7 @@ export default {
         this._sensor = sensor;
         this._sensorKind = kind;
         this._source = kind;
-        this._detector = createCadenceDetector({ source: kind });
+        this._detector = this._makeDetector(kind);
         this._buffer.clear();
         this._scale = 0.6;
         return true;
@@ -582,7 +583,7 @@ export default {
   _startDemo(reason) {
     this._stopDemo();
     this._source = 'demo';
-    this._detector = createCadenceDetector({ source: 'demo' });
+    this._detector = this._makeDetector('demo');
     this._buffer.clear();
     this._scale = 0.6;
     this._demoSignal = createStrideSignal({
@@ -962,9 +963,20 @@ export default {
       (last ? Math.round(this._now() - last.t) : -1) + 'ms demoTicks=' + this._demoTicks +
       ' readings=' + this._readings + ' frames=' + this._frames + ' ui=' + this._uiTicks +
       ' beats=' + stats.beats + ' rate=' + stats.achievedRate.toFixed(2) + ' maxLate=' +
-      Math.round(stats.maxLateMs) + 'ms cadence=' + (this._latest ? this._latest.cadence : 0) +
+      Math.round(stats.maxLateMs) + 'ms cadence=' + (this._latest ? this._latest.cadence : 0) + ' lock=' +
+      (this._latest && this._latest.locked ? 'y' : 'n') + ' mode=' +
+      (this._latest ? this._latest.axis + '/' + this._latest.mode : '-') + ' share=' +
+      (this._latest ? this._latest.share.toFixed(2) : '0') +
       ' scale=' + this._scale.toFixed(3) + ' ctx=' + this._ctxVia
     );
+  },
+
+  // The target cadence only helps the detector pick the right octave while it
+  // has not locked onto the runner yet; it never pulls the measured cadence.
+  _makeDetector(source) {
+    const detector = createCadenceDetector({ source });
+    detector.setExpected(this._target);
+    return detector;
   },
 
   _now() {
